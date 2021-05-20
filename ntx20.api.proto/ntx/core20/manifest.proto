@@ -1,0 +1,55 @@
+﻿syntax = "proto3";
+
+package ntx.core20;
+option csharp_namespace = "ntx20.api.proto";
+
+message Blob {
+ // hex(sha1(body))
+ string sha1 = 1;
+ // relative path to app root
+ // defaults to ${app_root}/${sha1} when archive not set, ${app_root} when archive is set
+ string path = 2;
+ // optional, supported values are [tgz, zip, tar]
+ string archive = 3;
+ // optional, [windows-x64, linux-x64]
+ string platform = 4;
+
+ repeated string tags = 5;
+  
+ int64 size = 6;
+}
+
+
+message Service {
+ // v2t-cz-broadcast
+ string name = 1;
+ // 1.2.4
+ string version = 2;
+ // ntx20
+ string appName = 3;
+ // 1.2.4
+ string appVersion = 4;
+
+ string entrypoint = 5;
+ repeated Blob blobs = 6;
+
+ string createdTime = 7;
+ 
+ map<string, string> labels = 8;
+}
+
+message App {
+ // ntx20
+ string name = 1;
+ // 1.2.4
+ string version = 2;
+ repeated Blob blobs = 3;
+
+ // defaults to ${name}, adds .exe suffix on windows OS
+ string entrypoint = 4;
+
+ repeated string args = 5;
+ map<string, string> env = 6;
+ 
+ string createdTime = 7;
+}
