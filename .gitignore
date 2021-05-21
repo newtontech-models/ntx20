@@ -13,3 +13,4 @@ ntx20.api.proto/bin/
 ntx20.api.proto/obj/
 ntx20.app/ntx20.app.csproj.user
 ntx20/Properties/launchSettings.json
+build/apps.nanotrix.cloud/

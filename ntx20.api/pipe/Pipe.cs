@@ -282,7 +282,7 @@ namespace ntx20.api.pipe
 
             var writer = Task.Run(async () =>
             {
-                await foreach (var v in source.ViaGRPCCall(call).Remove(x => !accepts.Contains(x.Track)))
+                await foreach (var v in source.Remove(x => !accepts.Contains(x.Track)).ViaGRPCCall(call))
                 {
                     bc.Add(v);
                     _semaphore.Release();

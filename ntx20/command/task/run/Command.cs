@@ -1,6 +1,8 @@
 ﻿using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.CommandLineUtils;
+using Microsoft.Extensions.Logging;
+using ntx20.api;
 using ntx20.api.io;
 using ntx20.api.pipe;
 using ntx20.api.proto;
@@ -22,13 +24,11 @@ namespace ntx20.command.task.run
         private static readonly string[] channelLayouts = { "mono", "stereo" };
         private static readonly string[] channelSelects = { "downmix", "left", "right" };
 
+        private static readonly ILogger _logger = Logging.LoggerFactory.CreateLogger("ntx20.command.task.run");
         internal static void Configure(CommandLineApplication command, CommandLineOptions options)
         {
             
-
-
-            
-            var resourceOption = command.Argument("application", "application url", false); ;
+            var taskOption = command.Argument("task", "task name");
             command.Description = "run task";
             var inputUriOption = command.Option(@"-i|--input",
             "input audio url",
@@ -66,7 +66,7 @@ namespace ntx20.command.task.run
               , CommandOptionType.SingleValue);
 
             command.ExtendedHelpText += audioFormatOption.RenderOption();
-            command.ExtendedHelpText += sampleFormats.RenderEnumHelp("$pcmFormat");
+            command.ExtendedHelpText += pcmFormats.RenderEnumHelp("$pcmFormat");
             command.ExtendedHelpText += sampleRates.RenderEnumHelp("$sampleRate");
             command.ExtendedHelpText += channelLayouts.RenderEnumHelp("$channelLayout");
 
@@ -83,7 +83,7 @@ namespace ntx20.command.task.run
 
             command.OnExecute(() =>
             {
-                resourceOption.MustSetValue(command);
+                taskOption.MustSetValue(command);
                 options.Command = new Command(command)
                 {
                     OutputUriOption = outputUriOption.GetValueOrDefault(),
@@ -96,6 +96,7 @@ namespace ntx20.command.task.run
                     Flush = flush.HasValue(),
                     Pipe = pipe.HasValue(),
                     Features = decoderFeatures.GetValueOrDefault(),
+                    TaskName = taskOption.Value,
                 };
                 return 0;
             });
@@ -110,6 +111,8 @@ namespace ntx20.command.task.run
         private uint ChunkSizeBytes { get; set; }
         private string IFormat { get; set; }
         private string OFormat { get; set; }
+
+        private string TaskName { get; set; }
 
         private string Features { get; set; }
         private bool Pipe { get; set; }
@@ -144,17 +147,18 @@ namespace ntx20.command.task.run
             //add metadata
             var meta = new Metadata
             {
-            
+                { "task",  TaskName},
             };
 
             //estabilish connection
-            using var call = new EngineService.EngineServiceClient(channel).Streaming(meta);
-
             
+            using var call = new EngineService.EngineServiceClient(channel).Streaming(meta);
+            _logger.LogInformation($"Task {TaskName} created");
+
 
             //start & configure service
             var configured = await call.Configure(configuration);
-
+            _logger.LogInformation($"Task {TaskName} configured");
 
             //accepts tracks
             var accepts = configured.Chunk.First(x => x.Key == "accepts").Tags.ToArray();
@@ -162,7 +166,7 @@ namespace ntx20.command.task.run
             if(IFormat == "raw")
             {
                 if(!accepts.Contains("aud"))
-                    throw new Exception("This service doesn't support raw input format!");
+                    throw new Exception("This task doesn't support raw input format!");
 
                 IFormat = accepts.Contains("vad") ?  "raw+aud+vad" : "raw+aud";
             }
@@ -186,6 +190,7 @@ namespace ntx20.command.task.run
                 _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
             });
 
+            _logger.LogInformation($"Task {TaskName} completed");
 
 
             return 0;

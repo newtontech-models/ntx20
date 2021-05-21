@@ -1,0 +1,1 @@
+mc cp apps.nanotrix.cloud/install/ntx20.tgz wasabi/apps.nanotrix.cloud/install/ntx20.tgz

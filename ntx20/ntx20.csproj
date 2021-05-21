@@ -28,5 +28,10 @@
     <Folder Include="command\auth\login\" />
     <Folder Include="command\auth\logout\" />
   </ItemGroup>
-
+  <ItemGroup>
+     <None Update="ntx20">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  
 </Project>
