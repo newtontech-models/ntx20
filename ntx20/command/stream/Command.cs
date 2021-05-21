@@ -1,25 +1,22 @@
 ﻿using Microsoft.Extensions.CommandLineUtils;
-using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ntx20.command
+namespace ntx20.command.stream
 {
     
     class Command :ICommand
     {
         internal static void Configure(CommandLineApplication command, CommandLineOptions options)
         {
-            if (Environment.GetEnvironmentVariable("NTX20_HOME_REMOTE") != null)
-            {
-                command.Command("app", (c) => app.Command.Configure(c, options), false);
-            }
-            command.Command("task", (c) => task.Command.Configure(c, options));
-            command.Command("stream", (c) => stream.Command.Configure(c, options));
+            command.Description = "stream utils";
+            command.Command("print", (c) => print.Command.Configure(c,options));
+            command.Command("conv", (c) => conv.Command.Configure(c, options));
 
             command.OnExecute(() =>
             {
                 options.Command = new Command(command);
+
                 return 0;
             });
             
@@ -37,4 +34,6 @@ namespace ntx20.command
 
 
     }
+
+
 }

@@ -1,25 +1,22 @@
 ﻿using Microsoft.Extensions.CommandLineUtils;
-using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ntx20.command
+namespace ntx20.command.stream.conv
 {
     
     class Command :ICommand
     {
         internal static void Configure(CommandLineApplication command, CommandLineOptions options)
         {
-            if (Environment.GetEnvironmentVariable("NTX20_HOME_REMOTE") != null)
-            {
-                command.Command("app", (c) => app.Command.Configure(c, options), false);
-            }
-            command.Command("task", (c) => task.Command.Configure(c, options));
-            command.Command("stream", (c) => stream.Command.Configure(c, options));
+            command.Description = "conversion tools";
+            command.Command("proto2json", (c) => proto2json.Command.Configure(c,options));
+            command.Command("json2proto", (c) => json2proto.Command.Configure(c, options));
 
             command.OnExecute(() =>
             {
                 options.Command = new Command(command);
+
                 return 0;
             });
             
@@ -37,4 +34,6 @@ namespace ntx20.command
 
 
     }
+
+
 }

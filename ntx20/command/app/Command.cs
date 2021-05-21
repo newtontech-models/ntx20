@@ -40,9 +40,19 @@ namespace ntx20.command.app
             _app = app;
         }
         private static readonly Google.Protobuf.JsonParser jsonParser = new Google.Protobuf.JsonParser(Google.Protobuf.JsonParser.Settings.Default.WithIgnoreUnknownFields(true));
-        private async Task<api.proto.App> GetAppDef(string version, string app_home_remote)
+        private async Task<api.proto.App> GetAppDef(string version, string app_home_remote, string app_home_local)
         {
-            var t = await api.io.LazyStream.Input($"{app_home_remote}/apps/ntx20/versions/{version}.json").GetTextAsync();
+            /*
+            var localfile = $"{app_home_local}/apps/ntx20/versions/{version}.json";
+            var remotefile = $"{app_home_remote}/apps/ntx20/versions/{version}.json";
+            Directory.CreateDirectory(Path.GetDirectoryName(localfile));
+            if (!File.Exists(localfile))
+            {
+                await api.io.LazyStream.Input(remotefile).CopyToAsync(LazyStream.Output(localfile,"application/json"));
+            }
+            */
+            var remotefile = $"{app_home_remote}/apps/ntx20/versions/{version}.json";
+            var t = await api.io.LazyStream.Input(remotefile).GetTextAsync();
             var app = jsonParser.Parse<api.proto.App>((t));
             return app;
         }   
@@ -80,7 +90,7 @@ namespace ntx20.command.app
             
             if (ntx20_version != null && ntx20_version.Contains("latest"))
             {
-                ntx20_version = (await GetAppDef(ntx20_version, app_home_remote)).Version;
+                ntx20_version = (await GetAppDef(ntx20_version, app_home_remote, app_home_local)).Version;
             }
             if (need_save || ntx20_version == null)
             {
@@ -156,7 +166,7 @@ namespace ntx20.command.app
             if (File.Exists(Path.Combine(app_home_local, "apps", "ntx20", version, withCore20 ? ".core" : ".client")))
                 return version;
 
-            var app = await GetAppDef(version, app_home_remote);
+            var app = await GetAppDef(version, app_home_remote, app_home_local);
 
             if (File.Exists(Path.Combine(app_home_local, "apps", "ntx20", app.Version, withCore20 ? ".core" : ".client")))
                 return app.Version;
@@ -193,12 +203,13 @@ namespace ntx20.command.app
                 }
             }
             File.Create(Path.Combine(app_home_local, "apps", "ntx20", app.Version, withCore20 ? ".core" : ".client")).Close();
+            File.WriteAllText(Path.Combine(app_home_local, "apps", "ntx20", app.Version, ".manifest"),app.ToString());
             _logger.LogInformation($"Fetching completed {app.Version}");
             return app.Version;
         }
 
         async Task Download(string source, string target)
-        {
+        {   
             if (File.Exists(target))
                 return;
             _logger.LogInformation($"Downloading {source} => {target}");
