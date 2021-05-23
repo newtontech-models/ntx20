@@ -6,9 +6,9 @@ PROJECT_NAME := ntx20
 export PROJECT_VERSION := $(shell git rev-parse --abbrev-ref HEAD)-$(PROJECT_GIT_HASH)
 
 
-all: apps.nanotrix.cloud/install/$(PROJECT_NAME).tgz
+all: apps.nanotrix.cloud/install/$(PROJECT_NAME).tgz status
 
-push: apps.nanotrix.cloud/install/$(PROJECT_NAME).tgz
+push: all
 	mc cp apps.nanotrix.cloud/install/$(PROJECT_NAME).tgz wasabi/apps.nanotrix.cloud/install/$(PROJECT_NAME).tgz
 
 clean:
@@ -23,3 +23,5 @@ apps.nanotrix.cloud/install/$(PROJECT_NAME)-$(PROJECT_VERSION).tgz: install/$(PR
 install/$(PROJECT_NAME)-$(PROJECT_VERSION):
 	cd ../$(PROJECT_NAME) && dotnet publish -c Release -o ../build/install/$(PROJECT_NAME)-$(PROJECT_VERSION) -f net5.0
 	
+status:
+	git status -s

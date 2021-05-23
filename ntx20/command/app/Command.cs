@@ -58,7 +58,15 @@ namespace ntx20.command.app
         }   
         public async Task<int> RunAsync(CancellationToken breaker)
         {
-            var app_home_local = Environment.GetEnvironmentVariable("NTX20_HOME_LOCAL") ?? Path.GetDirectoryName(typeof(Program).GetTypeInfo().Assembly.Location);
+            var app_home_local = Environment.GetEnvironmentVariable("NTX20_HOME_LOCAL");
+            if(app_home_local == null)
+            {
+                app_home_local  = Path.GetDirectoryName(typeof(Program).GetTypeInfo().Assembly.Location);
+                Environment.SetEnvironmentVariable("NTX20_HOME_LOCAL", app_home_local);
+            }
+
+
+
             if (Environment.GetEnvironmentVariable("NTX20_CACHEDIR") == null)
                 Environment.SetEnvironmentVariable("NTX20_CACHEDIR", Path.Combine(app_home_local, "blobs"));
 
