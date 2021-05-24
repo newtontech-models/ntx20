@@ -7,6 +7,7 @@ using ntx20.api.utils;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -58,6 +59,22 @@ namespace ntx20.command.app
         }   
         public async Task<int> RunAsync(CancellationToken breaker)
         {
+
+            try
+            {
+                var pos = Args.Contains("run") ? Array.IndexOf(Args, "run") : Array.IndexOf(Args, "serve");
+                if (pos > -1 && Args.Length > pos + 1)
+                {
+                    var resource = await LazyStream.Input(Args[pos + 1]).GetTextAsync();
+                    var parts = resource.Split(":", 3);
+                    Environment.SetEnvironmentVariable("NTX20_VERSION", parts[1]);
+                }
+            }
+            catch
+            {
+
+            }
+
             var app_home_local = Environment.GetEnvironmentVariable("NTX20_HOME_LOCAL");
             if(app_home_local == null)
             {
