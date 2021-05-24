@@ -1,0 +1,1 @@
+ curl https://s3.eu-central-1.wasabisys.com/apps.nanotrix.cloud/install/ntx20.tgz --output - | tar -xzvf - -C %~dp0

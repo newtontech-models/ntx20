@@ -12,6 +12,7 @@ using Google.Protobuf.WellKnownTypes;
 using System.Reflection;
 using System.IO;
 using System.Threading.Tasks;
+using System.Runtime.InteropServices;
 
 namespace ntx20
 {
@@ -26,18 +27,44 @@ namespace ntx20
 
     class Program
     {
-        static void AddCorePath(string var, string path)
-        {
-            if (System.Environment.GetEnvironmentVariable(var) == null)
-            {
-                Environment.SetEnvironmentVariable(var, path);
-                return;
-            }
-            var ret = System.Environment.GetEnvironmentVariable(var).Split(System.IO.Path.PathSeparator).ToList();
-            ret.Insert(0, path);
-            Environment.SetEnvironmentVariable(var, string.Join(System.IO.Path.PathSeparator, ret));
 
+        static void SetEnv(string path)
+        {
+            if (!File.Exists(path))
+                return;
+            try
+            {
+
+                string line;
+
+                // Read the file and display it line by line.  
+                System.IO.StreamReader file =
+                    new(path, true);
+                while ((line = file.ReadLine()) != null)
+                {
+                    if (!line.Contains('='))
+                        continue;
+                    if (line.Trim().StartsWith('#'))
+                        continue;
+                    var ret = line.Split("=", 2);
+                    if (ret.Length == 2)
+                    {
+                        System.Environment.SetEnvironmentVariable(ret[0], ret[1]);
+                    }
+                    else
+                    {
+                        System.Environment.SetEnvironmentVariable(ret[0], null);
+                    }
+                }
+
+            }
+            catch
+            {
+
+            }
         }
+
+
         static async Task<int> Main(string[] args)
         {
 
@@ -51,6 +78,21 @@ namespace ntx20
                 _ = WinFail.SetErrorMode(WinFail.ErrorModes.FailCriticalErrors | WinFail.ErrorModes.NoGpFaultErrorBox | WinFail.ErrorModes.NoOpenFileErrorBox);
             }
             catch { }
+
+
+            var config_path = Path.GetDirectoryName(typeof(Program).GetTypeInfo().Assembly.Location);
+            var system = "linux-x64";
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                system = "windows-x64";
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                system = "osx-x64";
+
+            var profile = Environment.GetEnvironmentVariable("NTX20_PROFILE") ?? ".env";
+            SetEnv(Path.Combine(config_path, profile));
+            SetEnv(Path.Combine(config_path, $"{system}.env"));
+
+
+
 
             bool firstBreak = false;
 

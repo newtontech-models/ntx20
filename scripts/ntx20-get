@@ -1,0 +1,5 @@
+#!/bin/bash
+SCRIPT=$(readlink -f "$0")
+SCRIPTPATH=$(dirname "$SCRIPT")
+
+curl https://s3.eu-central-1.wasabisys.com/apps.nanotrix.cloud/install/ntx20.tgz  | tar -xzvf - -C $SCRIPTPATH
