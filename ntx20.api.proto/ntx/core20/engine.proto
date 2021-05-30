@@ -18,7 +18,7 @@ message Item {
   Tensor t = 8;
   bytes b = 9;
   repeated string tags = 10;
-
+  map<string,string> labels = 11;
 }
 
 

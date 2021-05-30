@@ -77,6 +77,11 @@ namespace ntx20.command.task.run
                 CommandOptionType.SingleValue
                 );
 
+            var lexiconOption = command.Option($"--lexicon <none>",
+                 $"extra lexicon to use",
+                CommandOptionType.SingleValue
+                );
+
             var pipe = command.Option("-p|--pipe",
                 "run in pipe mode",
                 CommandOptionType.NoValue);
@@ -97,6 +102,7 @@ namespace ntx20.command.task.run
                     Pipe = pipe.HasValue(),
                     Features = decoderFeatures.GetValueOrDefault(),
                     TaskName = taskOption.Value,
+                    LexiconUriOption = lexiconOption.GetValueOrDefault(),
                 };
                 return 0;
             });
@@ -107,6 +113,8 @@ namespace ntx20.command.task.run
         private string OutputUriOption { get; set; }
         private string InputUriOption { get; set; }
         private string AudioFormatOption { get; set; }
+        
+        private string LexiconUriOption { get; set; }
         private string AudioChannelOption { get; set; }
         private uint ChunkSizeBytes { get; set; }
         private string IFormat { get; set; }
@@ -141,6 +149,7 @@ namespace ntx20.command.task.run
                     new Item{ Key = "audio-format", S = AudioFormatOption, Type = "s" },
                     new Item{ Key = "audio-channel", S = AudioChannelOption, Type = "s" },
                     new Item{ Key = "features", S = Features, Type = "s" },
+                    CmdUtils.LexiconFromUrl(LexiconUriOption),
                 }
             };
 

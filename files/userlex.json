@@ -1,0 +1,25 @@
+{
+    "key": "lexicon",
+    "type": "m",
+    "m": [
+        {
+            "type": "s",
+            "s": "RADIOŽURNÁL",
+            "labels": {
+                "hint": "radio jedna",
+                "pron": "radijožurnál"
+            }
+        },
+        {
+            "type": "s",
+            "s": "RADIOŽURNÁL",
+            "labels": {
+                "hint": "radio jedna"
+            }
+        },
+        {
+            "type": "s",
+            "s": "RADIOŽURNÁL"
+        }
+    ]
+}
