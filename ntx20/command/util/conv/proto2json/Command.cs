@@ -11,22 +11,22 @@ using Google.Protobuf.Collections;
 using Microsoft.Extensions.Logging;
 using System;
 
-namespace ntx20.command.stream.json2proto
+namespace ntx20.command.util.conv.proto2json
 {
     class Command : ICommand
     {
-        private static readonly ILogger _logger = Logging.LoggerFactory.CreateLogger("ntx20.command.tool.json2proto");
+        private static readonly ILogger _logger = Logging.LoggerFactory.CreateLogger("ntx20.command.tool.proto2json");
         internal static void Configure(CommandLineApplication command, CommandLineOptions options)
         {
-            
-            command.Description = "converts json to proto";
+
+            command.Description = "converts proto to json";
             command.HelpOption("-h|--help");
             var outputUriOption = command.Option("-o|--output <->",
-                "output proto url",
+                "output json url",
                 CommandOptionType.SingleValue
                 );
             var inputUriOption = command.Option(@"-i|--input",
-            "input json url",
+            "input proto url",
             CommandOptionType.SingleValue
             );
 
@@ -53,17 +53,17 @@ namespace ntx20.command.stream.json2proto
         private string InputUriOption { get; set; }
         private bool Flush { get; set; }
         private readonly CommandLineApplication _app;
-        
+
         public Command(CommandLineApplication app)
         {
             _app = app;
         }
         public async Task<int> RunAsync(CancellationToken breaker)
         {
-            using var output = LazyStream.Output(OutputUriOption, "binary", breaker);
+            using var output = LazyStream.Output(OutputUriOption, "text", breaker);
             using var input = LazyStream.Input(InputUriOption, breaker);
 
-            await input.AsProtoJsonSource<api.proto.Payload>(breaker).RunWithSink(output.AsBinaryProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker);
+            await input.AsProtoBinarySource<api.proto.Payload>(breaker).RunWithSink(output.AsJsonProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker);
             return 0;
         }
     }

@@ -52,6 +52,11 @@ namespace ntx20.command.task.run
                 "enable flush on every write",
                 CommandOptionType.NoValue
                 );
+           
+            var endpointOption = command.Option(@"-e|--endpoint <http://localhost:6666>",
+           "endpoint",
+               CommandOptionType.SingleValue
+           );
 
             /*input*/
             command.ExtendedHelpText = Environment.NewLine + "Options: " + Environment.NewLine;
@@ -103,6 +108,7 @@ namespace ntx20.command.task.run
                     Features = decoderFeatures.GetValueOrDefault(),
                     TaskName = taskOption.Value,
                     LexiconUriOption = lexiconOption.GetValueOrDefault(),
+                    EndpointOption = endpointOption.GetValueOrDefault(),
                 };
                 return 0;
             });
@@ -110,6 +116,7 @@ namespace ntx20.command.task.run
            
         }
 
+        private string EndpointOption { get; set; }
         private string OutputUriOption { get; set; }
         private string InputUriOption { get; set; }
         private string AudioFormatOption { get; set; }
@@ -135,8 +142,8 @@ namespace ntx20.command.task.run
         }
         public async Task<int> RunAsync(CancellationToken breaker)
         {
-            var endpoint = "http://localhost:6666";
-            using var channel = GrpcChannel.ForAddress(endpoint);
+            
+            using var channel = GrpcChannel.ForAddress(EndpointOption);
 
             using var input = LazyStream.Input(InputUriOption, breaker);
             using var output = LazyStream.Output(OutputUriOption, "binary", breaker);

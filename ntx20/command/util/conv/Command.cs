@@ -2,16 +2,16 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ntx20.command.stream
+namespace ntx20.command.util.conv
 {
     
     class Command :ICommand
     {
         internal static void Configure(CommandLineApplication command, CommandLineOptions options)
         {
-            command.Description = "stream utils";
-            command.Command("print", (c) => print.Command.Configure(c,options));
-            command.Command("conv", (c) => conv.Command.Configure(c, options));
+            command.Description = "conversion tools";
+            command.Command("proto2json", (c) => proto2json.Command.Configure(c,options));
+            command.Command("json2proto", (c) => json2proto.Command.Configure(c, options));
 
             command.OnExecute(() =>
             {

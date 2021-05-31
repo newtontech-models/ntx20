@@ -152,16 +152,15 @@ namespace ntx20
             .GetTypeInfo()
             .Assembly.Location;
 
-            
-            try
-            {
-                options.Version = File.ReadAllText(Path.Combine(Path.GetDirectoryName(location),"ntx20.version")).Trim();
-            }
-            catch {
-                options.Version = "0.0.0-devel";
-            };
-                
-            
+
+            options.Version = typeof(CommandLineOptions)
+           .GetTypeInfo()
+           .Assembly
+           .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+           .InformationalVersion;
+
+
+
             //.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
             //.InformationalVersion;
 

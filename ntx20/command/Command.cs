@@ -15,7 +15,7 @@ namespace ntx20.command
                 command.Command("app", (c) => app.Command.Configure(c, options), false);
             }
             command.Command("task", (c) => task.Command.Configure(c, options));
-            command.Command("stream", (c) => stream.Command.Configure(c, options));
+            command.Command("util", (c) => util.Command.Configure(c, options));
 
             command.OnExecute(() =>
             {

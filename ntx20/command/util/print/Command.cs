@@ -2,17 +2,15 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ntx20.command.stream.conv
+namespace ntx20.command.util.print
 {
     
     class Command :ICommand
     {
         internal static void Configure(CommandLineApplication command, CommandLineOptions options)
         {
-            command.Description = "conversion tools";
-            command.Command("proto2json", (c) => proto2json.Command.Configure(c,options));
-            command.Command("json2proto", (c) => json2proto.Command.Configure(c, options));
-
+            command.Description = "print";
+            command.Command("tensor", (c) => tensor.Command.Configure(c,options));
             command.OnExecute(() =>
             {
                 options.Command = new Command(command);

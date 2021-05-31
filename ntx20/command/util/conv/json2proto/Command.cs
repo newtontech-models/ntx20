@@ -11,28 +11,29 @@ using Google.Protobuf.Collections;
 using Microsoft.Extensions.Logging;
 using System;
 
-namespace ntx20.command.stream.print.tensor
+namespace ntx20.command.util.conv.json2proto
 {
     class Command : ICommand
     {
-        private static readonly ILogger _logger = Logging.LoggerFactory.CreateLogger("ntx20.command.tool.tprint");
+        private static readonly ILogger _logger = Logging.LoggerFactory.CreateLogger("ntx20.command.tool.json2proto");
         internal static void Configure(CommandLineApplication command, CommandLineOptions options)
         {
             
-            command.Description = "print tensor";
+            command.Description = "converts json to proto";
             command.HelpOption("-h|--help");
             var outputUriOption = command.Option("-o|--output <->",
-                "output url",
+                "output proto url",
                 CommandOptionType.SingleValue
                 );
-            var iFormatOption = command.Option($"-r|--reader <htk>",
-             "read input as htk|proto|json",
-             CommandOptionType.SingleValue
-             );
             var inputUriOption = command.Option(@"-i|--input",
-            "input audio url",
+            "input json url",
             CommandOptionType.SingleValue
             );
+
+            var flush = command.Option("-f|--flush",
+                "enable flush on every write",
+                CommandOptionType.NoValue
+                );
 
             command.OnExecute(() =>
             {
@@ -41,7 +42,7 @@ namespace ntx20.command.stream.print.tensor
                 {
                     OutputUriOption = outputUriOption.GetValueOrDefault(),
                     InputUriOption = inputUriOption.Value(),
-                    Iformat = iFormatOption.GetValueOrDefault()
+                    Flush = flush.HasValue(),
 
                 };
                 return 0;
@@ -50,8 +51,7 @@ namespace ntx20.command.stream.print.tensor
 
         private string OutputUriOption { get; set; }
         private string InputUriOption { get; set; }
-        private string Iformat { get; set; }
-
+        private bool Flush { get; set; }
         private readonly CommandLineApplication _app;
         
         public Command(CommandLineApplication app)
@@ -60,19 +60,10 @@ namespace ntx20.command.stream.print.tensor
         }
         public async Task<int> RunAsync(CancellationToken breaker)
         {
-            using var output = LazyStream.Output(OutputUriOption, "text", breaker);
+            using var output = LazyStream.Output(OutputUriOption, "binary", breaker);
             using var input = LazyStream.Input(InputUriOption, breaker);
 
-            var pipe = (Iformat switch
-            {
-                "htk" => input.AsHtkTensorStreamSource(cancellationToken: breaker),
-                "proto" => input.AsProtoBinarySource<api.proto.Payload>(breaker),
-                "json" => input.AsProtoJsonSource<api.proto.Payload>(breaker),
-                _ => throw new NotImplementedException($"unsuported input format {Iformat}"),
-            });
-
-
-            await pipe.PrintTensor().RunWithSink(output.AsRawChunkSink(), autoFlush: true);
+            await input.AsProtoJsonSource<api.proto.Payload>(breaker).RunWithSink(output.AsBinaryProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker);
             return 0;
         }
     }

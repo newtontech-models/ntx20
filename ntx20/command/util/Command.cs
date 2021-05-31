@@ -2,15 +2,17 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ntx20.command.stream.print
+namespace ntx20.command.util
 {
     
     class Command :ICommand
     {
         internal static void Configure(CommandLineApplication command, CommandLineOptions options)
         {
-            command.Description = "print";
-            command.Command("tensor", (c) => tensor.Command.Configure(c,options));
+            command.Description = "stream utils";
+            command.Command("print", (c) => print.Command.Configure(c,options));
+            command.Command("conv", (c) => conv.Command.Configure(c, options));
+
             command.OnExecute(() =>
             {
                 options.Command = new Command(command);
