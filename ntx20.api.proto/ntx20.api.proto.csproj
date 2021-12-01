@@ -25,6 +25,7 @@
   <ItemGroup>
     <Protobuf Include="ntx\core20\engine.proto" GrpcServices="Client" />
     <Protobuf Include="ntx\core20\manifest.proto" />
+    <Protobuf Include="ntx\v2t\engine\engine.proto" />
   </ItemGroup>
 
 

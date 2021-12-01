@@ -12,6 +12,8 @@ namespace ntx20.command.util.conv
             command.Description = "conversion tools";
             command.Command("proto2json", (c) => proto2json.Command.Configure(c,options));
             command.Command("json2proto", (c) => json2proto.Command.Configure(c, options));
+            command.Command("fromlegacy", (c) => fromlegacy.Command.Configure(c, options));
+            command.Command("tolegacy", (c) => tolegacy.Command.Configure(c, options));
 
             command.OnExecute(() =>
             {

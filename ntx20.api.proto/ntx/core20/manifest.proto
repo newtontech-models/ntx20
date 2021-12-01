@@ -20,26 +20,6 @@ message Blob {
 }
 
 
-message Service {
-  // v2t-cz-broadcast
-  string name = 1;
-  // 1.2.4, 85136c79cbf9fe36bb9d05d0639c70c265c18d37
-  string version = 2;
-  // ntx20
-  string appName = 3;
-  // 1.2.4
-  string appVersion = 4;
-
-  repeated string cmd = 5;
-  map<string, string> env = 6;
-
-  repeated Blob blobs = 7;
-  // 210225-150412
-  string createdTime = 8;
-
-  map<string, string> labels = 9;
-}
-
 message App {
   // ntx20
   string name = 1;

@@ -7,19 +7,20 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using ntx20.api.pipe;
+using ntx20.api.utils;
 using Google.Protobuf.Collections;
 using Microsoft.Extensions.Logging;
 using System;
 
-namespace ntx20.command.util.conv.json2proto
+namespace ntx20.command.util.conv.tolegacy
 {
     class Command : ICommand
     {
-        private static readonly ILogger _logger = Logging.LoggerFactory.CreateLogger("ntx20.command.tool.conv.json2proto");
+        private static readonly ILogger _logger = Logging.LoggerFactory.CreateLogger("ntx20.command.tool.conv.tolegacy");
         internal static void Configure(CommandLineApplication command, CommandLineOptions options)
         {
             
-            command.Description = "converts json to proto";
+            command.Description = "converts to legacy format";
             command.HelpOption("-h|--help");
             var outputUriOption = command.Option("-o|--output <->",
                 "output proto url",
@@ -34,15 +35,21 @@ namespace ntx20.command.util.conv.json2proto
                 "enable flush on every write",
                 CommandOptionType.NoValue
                 );
+            var trackOption = command.Option(@"-t|--track",
+            "set input track id",
+            CommandOptionType.SingleValue
+            );
 
             command.OnExecute(() =>
             {
                 inputUriOption.MustSetValue(command);
+                trackOption.MustSetValue(command);
                 options.Command = new Command(command)
                 {
                     OutputUriOption = outputUriOption.GetValueOrDefault(),
                     InputUriOption = inputUriOption.Value(),
                     Flush = flush.HasValue(),
+                    TrackOption = trackOption.Value()
 
                 };
                 return 0;
@@ -51,6 +58,7 @@ namespace ntx20.command.util.conv.json2proto
 
         private string OutputUriOption { get; set; }
         private string InputUriOption { get; set; }
+        private string TrackOption { get; set; }
         private bool Flush { get; set; }
         private readonly CommandLineApplication _app;
         
@@ -62,8 +70,10 @@ namespace ntx20.command.util.conv.json2proto
         {
             using var output = LazyStream.Output(OutputUriOption, "binary", breaker);
             using var input = LazyStream.Input(InputUriOption, breaker);
-
-            await input.AsProtoJsonSource<api.proto.Payload>(breaker).RunWithSink(output.AsBinaryProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker);
+            await input.AsProtoJsonSource<api.proto.Payload>(breaker)
+                .Remove(x => x.Track != TrackOption)
+                .ViaMapper(x => x.ToV1())
+                .RunWithSink(output.AsJsonProtoSink<api.proto.legacy.v2t.engine.Events>(), autoFlush: Flush, cancellationToken: breaker);
             return 0;
         }
     }
