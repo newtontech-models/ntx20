@@ -153,10 +153,17 @@ namespace ntx20.api.pipe
                 try
                 {
                     if (!await requestStream.MoveNext(cancellationToken))
+                    {
                         break;
+                    }
                 }
-                catch (TaskCanceledException) { break; }
-                catch (Exception) { break; }
+                catch (TaskCanceledException) { 
+                    break; 
+                }
+                catch (Exception ex) {
+                    _logger.LogWarning(ex.ToString());
+                    break; 
+                }
                 yield return requestStream.Current;
             }
         }
