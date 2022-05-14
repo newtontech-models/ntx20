@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -12,6 +13,31 @@ namespace ntx20.api.pipe
 {
     public static class Source
     {
+        private static readonly ILogger _logger = Logging.LoggerFactory.CreateLogger("ntx20.api.pipe.source");
+        public static async IAsyncEnumerable<string> AsTextChunkSource(this Stream stream, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+
+            using (var sr = new StreamReader(stream, Encoding.UTF8))
+            {
+                while (true)
+                {
+                    string ret = null;
+                    try
+                    {
+                        ret = await sr.ReadLineAsync();
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        break;
+                    }
+                    if (ret == null)
+                        break;
+                    yield return ret;
+
+                }
+            }
+        }
+
         public static async IAsyncEnumerable<byte[]> AsBinaryChunkSource(this Stream stream,  int chunkSize = 4096, long limitBytes = 0, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             var buffer = new byte[chunkSize];
@@ -151,7 +177,16 @@ namespace ntx20.api.pipe
                         break;
                 }
                 catch (TaskCanceledException) { break; }
-                yield return Google.Protobuf.JsonParser.Default.Parse<T>(line);
+                T ret = default(T);
+                try
+                {
+                    ret = Google.Protobuf.JsonParser.Default.Parse<T>(line);
+                }catch(Exception ex)
+                {
+                    _logger.LogWarning(ex.ToString());
+                    break;
+                }
+                yield return ret;
             }
 
         }

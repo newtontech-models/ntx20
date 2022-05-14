@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.CommandLineUtils;
+﻿using Grpc.Core;
+using Microsoft.Extensions.CommandLineUtils;
 using ntx20.command;
 using Serilog.Events;
 using System;
@@ -62,11 +63,11 @@ namespace ntx20
         public string LogLevel { get; set; }
         public ICommand Command { get; set; }
         public string Version { get; set; }
-        public string Credentials {get;set;}
         public string LogFilter { get; set; }
-        public string EnvFile { get; set; }
-        public string AppHome { get; set; }
         
+        public Func<AsyncDuplexStreamingCall<api.proto.Payload,api.proto.Payload>> CreateCall { get; set; }
+        
+        public ntx20.api.proto.ServiceVersion TheService { get; set; }
 
         private static string[] SplitAsCmdArguments(string args)
         {
@@ -181,10 +182,6 @@ namespace ntx20
             var loggingFilterOption = app.Option("-f|--logfilter <.*>",
                 "global logging filter",
                 CommandOptionType.SingleValue);
-            var envFilePath = app.Option("-e|--env <.env>"
-                , "default path with environment"
-                , CommandOptionType.SingleValue);
-
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 if (Environment.GetEnvironmentVariable("HOME") == null)
@@ -194,15 +191,6 @@ namespace ntx20
                         ));
                 }
             }
-            string tokenPath = Path.Combine(
-                    Environment.GetEnvironmentVariable("HOME"), ".ntx", "access_token");
-
-            string credentials = "env://NTX20_CREDENTIALS";
-            var credentialsOption = app.Option($"-c| --credentials <{credentials}>",
-                "credentials uri, expected content in format usr:psw", CommandOptionType.SingleValue);
-
-            //base64encoded -> type auth /login+endpoint/, 
-
             command.Command.Configure(app, options);
             
             var _args = args.ToList();
@@ -222,10 +210,8 @@ namespace ntx20
                 Console.Error.WriteLine($"Error parsing cmd: {ex}");
                 return null;
             }
-            options.Credentials = credentialsOption.HasValue() ? credentialsOption.Value() : credentialsOption.ValueName;
             options.LogLevel = loggingOption.HasValue() ? loggingOption.Value() : loggingOption.ValueName;
             options.LogFilter = loggingFilterOption.HasValue() ? loggingFilterOption.Value() : loggingFilterOption.ValueName;
-            options.EnvFile = envFilePath.GetValueOrDefault();
 
             return options;
         }

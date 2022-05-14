@@ -13,6 +13,7 @@ using System.Reflection;
 using System.IO;
 using System.Threading.Tasks;
 using System.Runtime.InteropServices;
+using ntx20.api.io;
 
 namespace ntx20
 {
@@ -80,17 +81,17 @@ namespace ntx20
             catch { }
 
 
-            var config_path = Path.GetDirectoryName(typeof(Program).GetTypeInfo().Assembly.Location);
+            var config_path = Environment.GetEnvironmentVariable("NTX20_CONFIG_PATH") ?? Path.GetDirectoryName(typeof(Program).GetTypeInfo().Assembly.Location);
+            
             var system = "linux-x64";
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 system = "windows-x64";
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
                 system = "osx-x64";
-
-            var profile = Environment.GetEnvironmentVariable("NTX20_PROFILE") ?? ".env";
-            SetEnv(Path.Combine(config_path, profile));
+            
+            SetEnv(Path.Combine(config_path, ".env"));
             SetEnv(Path.Combine(config_path, $"{system}.env"));
-
+            
 
 
 
@@ -104,6 +105,15 @@ namespace ntx20
             if (options == null || options.Command==null)
             {
                 return 1;
+            }
+
+            if (options.TheService != null)
+            {
+                options = CommandLineOptions.Parse(args, options);
+                if (options == null || options.Command == null)
+                {
+                    return 1;
+                }
             }
 
 

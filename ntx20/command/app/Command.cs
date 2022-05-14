@@ -62,12 +62,15 @@ namespace ntx20.command.app
 
             try
             {
-                var pos = Args.Contains("run") ? Array.IndexOf(Args, "run") : Array.IndexOf(Args, "serve");
+                var pos = Args.Contains("serve") ? Array.IndexOf(Args, "serve") : Array.IndexOf(Args, "push");
                 if (pos > -1 && Args.Length > pos + 1)
                 {
                     var resource = await LazyStream.Input(Args[pos + 1]).GetTextAsync();
                     var parts = resource.Split(":", 3);
-                    Environment.SetEnvironmentVariable("NTX20_VERSION", parts[1]);
+                    if (Environment.GetEnvironmentVariable("NTX20_APP_PATH") == null)
+                    {
+                        Environment.SetEnvironmentVariable("NTX20_VERSION", parts[1]);
+                    }
                 }
             }
             catch
@@ -184,7 +187,14 @@ namespace ntx20.command.app
                 }
             }
 
-            return Run(app_home_local, ntx20_version, Args);
+            if (Args.Contains("serve"))
+            {
+                return Serve(app_home_local, ntx20_version, Args);
+            }
+            else
+            {
+                return Run(app_home_local, ntx20_version, Args);
+            }
         }
         async Task<string> GetVersion(string version, string app_home_remote, string app_home_local, bool withCore20)
         {
@@ -265,9 +275,37 @@ namespace ntx20.command.app
             tarIn.Close();
         }
 
+        private int Serve(string app_home_local, string version, string[] args)
+        {
+            var app_path = Path.Combine(app_home_local, "apps", "ntx20", version, "ntx20.app.dll");
+            if (Environment.GetEnvironmentVariable("NTX20_APP_PATH") != null)
+            {
+                app_path = Environment.GetEnvironmentVariable("NTX20_APP_PATH");
+            }
+
+            var p = new Process();
+            p.StartInfo.CreateNoWindow = false;
+            p.StartInfo.FileName = "dotnet";
+            p.StartInfo.UseShellExecute = false;
+            p.StartInfo.Arguments = $"{app_path} {string.Join(" ", args)}";
+            p.StartInfo.RedirectStandardOutput = true;
+            p.Start();
+            var connectionString = p.StandardOutput.ReadLine();
+            if (connectionString == null)
+            {
+                return 1;
+            }
+            Console.WriteLine(connectionString);
+            return 0;
+        }
+
         private int Run(string app_home_local, string version, string[] args)
         {
             var app_path = Path.Combine(app_home_local, "apps", "ntx20", version, "ntx20.app.dll");
+            if (Environment.GetEnvironmentVariable("NTX20_APP_PATH") != null)
+            {
+                app_path = Environment.GetEnvironmentVariable("NTX20_APP_PATH");
+            }
 
             var p = new Process();
             //p.StartInfo.CreateNoWindow = true;

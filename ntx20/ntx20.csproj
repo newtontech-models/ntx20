@@ -25,11 +25,6 @@
     <ProjectReference Include="..\ntx20.api.proto\ntx20.api.proto.csproj" />
     <ProjectReference Include="..\ntx20.api\ntx20.api.csproj" />
   </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="command\auth\login\" />
-    <Folder Include="command\auth\logout\" />
-  </ItemGroup>
   <ItemGroup>
      <None Update="ntx20">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

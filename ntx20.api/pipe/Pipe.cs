@@ -41,8 +41,11 @@ namespace ntx20.api.pipe
                 if(autoFlush)
                     await sink.FlushAsync(cancellationToken);
             }
-            if(autoComplete)
+            if (autoComplete)
+            {
+                await sink.FlushAsync(cancellationToken);
                 await sink.CompleteAsync(cancellationToken);
+            }
         }
 
         public static async IAsyncEnumerable<Y> ViaMapper<X,Y>(this IAsyncEnumerable<X> source, Func<X,Y> mapper)
@@ -246,16 +249,17 @@ namespace ntx20.api.pipe
             }
         }
 
-        public static async Task<proto.Payload> Configure(this Grpc.Core.AsyncDuplexStreamingCall<proto.Payload, proto.Payload> call, proto.Payload config)
+
+        public static async Task<proto.Payload> Configure(this Grpc.Core.AsyncDuplexStreamingCall<proto.Payload, proto.Payload> call, proto.Payload config, CancellationToken cancellationToken)
         {
             await call.RequestStream.WriteAsync(config);
-            await call.ResponseStream.MoveNext();
+            await call.ResponseStream.MoveNext(cancellationToken);
             return call.ResponseStream.Current;
         }
 
         public static async IAsyncEnumerable<proto.Payload> ViaGRPCCall(this IAsyncEnumerable<proto.Payload> source, Grpc.Core.AsyncDuplexStreamingCall<proto.Payload, proto.Payload> call)
         {
-            var upstream = source.RunWithSink(call.RequestStream.AsGrpcSink());
+            var upstream = source.RunWithBuffer(1).RunWithSink(call.RequestStream.AsGrpcSink());
 
             await foreach (var i in call.ResponseStream.AsProtoSource())
             {
@@ -295,7 +299,7 @@ namespace ntx20.api.pipe
             while (true)
             {
                 await _semaphore.WaitAsync();
-                if (bc.IsCompleted)
+                if (bc.IsCompleted && bc.Count ==0)
                     break;
                 yield return bc.Take();
             }
@@ -303,6 +307,50 @@ namespace ntx20.api.pipe
 
             await writer;
         }
+
+        public static async IAsyncEnumerable<string> ToSimpleText(this IAsyncEnumerable<proto.Payload> source)
+        {
+            await foreach (var x in source)
+            {
+                var ss = new List<string> { x.Track };
+                foreach (var v in x.Chunk)
+                {
+
+                    var value = v.Type switch
+                    {
+                        "s" => v.S,
+                        "t" => v.T.ToString(),
+                        "d" => v.D.ToString(),
+                        "f" => v.F.ToString(),
+                        "i" => v.I.ToString(),
+                        _ => "unk",
+                    };
+                    var labels = string.Join(' ', v.Labels.Select(x => $"{x.Key}={x.Value}"));
+                    ss.Add($"{v.Key}|{v.Type}|{value}|{string.Join(' ', v.Tags)}|{labels}");
+                }
+                yield return string.Join('|', ss) + System.Environment.NewLine;
+
+            }
+        }
+
+        public static async IAsyncEnumerable<string> ToText(this IAsyncEnumerable<proto.Payload> source, string track)
+        {
+            await foreach (var x in source)
+            {
+                if (x.Track != track)
+                    continue;
+                foreach (var v in x.Chunk)
+                {
+                    if (v.Key != "txt")
+                        continue;
+                    if (v.Tags.Contains("la"))
+                        continue;
+                    yield return v.S;
+                }
+            }
+        }
+
     }
+
 }
 

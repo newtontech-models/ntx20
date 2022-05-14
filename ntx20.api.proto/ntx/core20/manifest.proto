@@ -32,3 +32,21 @@ message App {
 
   map<string, string> labels = 5;
 }
+
+message Service{
+	repeated ServiceVersion versions = 1;
+}
+message ServiceVersion {
+  // name must be group + '.' + version
+  //ServiceMeta meta = 1;
+  string service = 1;
+  string version = 2;
+  map<string, string> labels = 3;
+  // e.g. cz-broadcast, may not contain '.'
+  repeated string cmd = 4;
+  map<string, string> env = 5;
+
+  repeated Blob blobs = 6;
+
+  int64 expireTime = 7;
+}
