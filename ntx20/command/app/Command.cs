@@ -62,7 +62,7 @@ namespace ntx20.command.app
 
             try
             {
-                var pos = Args.Contains("serve") ? Array.IndexOf(Args, "serve") : Array.IndexOf(Args, "push");
+                var pos = Args.Contains("run") ? Array.IndexOf(Args, "run") : Array.IndexOf(Args, "serve");
                 if (pos > -1 && Args.Length > pos + 1)
                 {
                     var resource = await LazyStream.Input(Args[pos + 1]).GetTextAsync();
@@ -116,9 +116,12 @@ namespace ntx20.command.app
 
             var app_home_remote = Environment.GetEnvironmentVariable("NTX20_HOME_REMOTE");
             
-            if (ntx20_version != null && ntx20_version.Contains("latest"))
+            if (ntx20_version != null)
             {
-                ntx20_version = (await GetAppDef(ntx20_version, app_home_remote, app_home_local)).Version;
+                if (!File.Exists(Path.Combine(app_home_local, "apps", "ntx20", ntx20_version, ".core")))
+                {
+                    ntx20_version = (await GetAppDef(ntx20_version, app_home_remote, app_home_local)).Version;
+                }
             }
             if (need_save || ntx20_version == null)
             {
