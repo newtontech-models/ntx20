@@ -292,14 +292,29 @@ namespace ntx20.command.app
             p.StartInfo.UseShellExecute = false;
             p.StartInfo.Arguments = $"{app_path} {string.Join(" ", args)}";
             p.StartInfo.RedirectStandardOutput = true;
+            p.StartInfo.RedirectStandardInput = true;
+            p.StartInfo.RedirectStandardError = true;
             p.Start();
-            var connectionString = p.StandardOutput.ReadLine();
-            if (connectionString == null)
+            
+            var t0 = p.StandardOutput.ReadLineAsync();
+            var t1 = Task.Run(() =>
             {
-                return 1;
+                if (!p.HasExited)
+                {
+                    p.WaitForExit();
+                }
+            });
+            if(Task.WaitAny(t0, t1) == 0)
+            {
+                Console.WriteLine(t0.Result);
+                p.StandardOutput.Close();
+                p.StandardInput.Close();
+                p.StandardError.Close();
+                
+                return 0;
             }
-            Console.WriteLine(connectionString);
-            return 0;
+            Console.Error.WriteLine(p.StandardError.ReadToEnd());
+            return 1;
         }
 
         private int Run(string app_home_local, string version, string[] args)
