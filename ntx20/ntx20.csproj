@@ -26,9 +26,6 @@
     <ProjectReference Include="..\ntx20.api\ntx20.api.csproj" />
   </ItemGroup>
   <ItemGroup>
-     <None Update=".env">
-       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-     </None>
      <None Update="ntx20">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
