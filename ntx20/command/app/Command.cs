@@ -287,7 +287,7 @@ namespace ntx20.command.app
             }
 
             var p = new Process();
-            p.StartInfo.CreateNoWindow = false;
+            p.StartInfo.CreateNoWindow = true;
             p.StartInfo.FileName = "dotnet";
             p.StartInfo.UseShellExecute = false;
             p.StartInfo.Arguments = $"{app_path} {string.Join(" ", args)}";
