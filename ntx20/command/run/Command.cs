@@ -87,8 +87,8 @@ namespace ntx20.command.run
                         { "Authorization",  $"Basic {Convert.ToBase64String(System.Text.ASCIIEncoding.UTF8.GetBytes(uri.UserInfo))}"},
                     };
 
-
-                    options.CreateCall = () =>  new EngineService.EngineServiceClient(GrpcChannel.ForAddress(uri)).Streaming(meta);
+                    options.Client = new EngineService.EngineServiceClient(GrpcChannel.ForAddress(uri));
+                    options.CreateStreaming = () => options.Client.Streaming(meta);
                     options.Command = new Command(command);
                     return 0;
                 });

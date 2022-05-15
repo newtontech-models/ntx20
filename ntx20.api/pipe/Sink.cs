@@ -24,6 +24,8 @@ namespace ntx20.api.pipe
         }
 
 
+        
+
 
         public static IAsyncSink<T> AsBinaryProtoSink<T>(this Stream stream) where T : Google.Protobuf.IMessage, new()
         {

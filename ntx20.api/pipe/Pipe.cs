@@ -56,6 +56,14 @@ namespace ntx20.api.pipe
             }
         }
 
+        public static async IAsyncEnumerable<Y> ViaAsyncMapper<X, Y>(this IAsyncEnumerable<X> source, Func<X, Task<Y>> mapper)
+        {
+            await foreach (X x in source)
+            {
+                yield return await mapper(x);
+            }
+        }
+
         public static async IAsyncEnumerable<proto.Tensor> ToTensor(this IAsyncEnumerable<byte[]> source)
         {
             await foreach (var x in source)

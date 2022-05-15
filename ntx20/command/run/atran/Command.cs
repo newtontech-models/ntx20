@@ -133,7 +133,7 @@ namespace ntx20.command.run.atran
             using var input = LazyStream.Input(InputUriOption, breaker);
             using var output = LazyStream.Output(OutputUriOption, "binary", breaker);
             
-            using var call = _opts.CreateCall();
+            using var call = _opts.CreateStreaming();
 
             var configuration = new api.proto.Payload
             {

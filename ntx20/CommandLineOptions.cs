@@ -1,5 +1,6 @@
 ﻿using Grpc.Core;
 using Microsoft.Extensions.CommandLineUtils;
+using ntx20.api.proto;
 using ntx20.command;
 using Serilog.Events;
 using System;
@@ -64,8 +65,9 @@ namespace ntx20
         public ICommand Command { get; set; }
         public string Version { get; set; }
         public string LogFilter { get; set; }
-        
-        public Func<AsyncDuplexStreamingCall<api.proto.Payload,api.proto.Payload>> CreateCall { get; set; }
+
+        public EngineService.EngineServiceClient Client { get; set; }
+        public Func<AsyncDuplexStreamingCall<api.proto.Payload,api.proto.Payload>> CreateStreaming { get; set; }
         
         public ntx20.api.proto.ServiceVersion TheService { get; set; }
 

@@ -206,6 +206,14 @@ namespace ntx20.api.pipe
             }
         }
 
+        public static async IAsyncEnumerable<T> AsProtoSource<T>(this List<T> bc)
+        {
+            foreach (var x in bc)
+            {
+                yield return await Task.FromResult(x);
+            }
+        }
+
         public static async IAsyncEnumerable<T> AsProtoBinarySource<T>(this Stream stream, [EnumeratorCancellation] CancellationToken token) where T : Google.Protobuf.IMessage, new()
         {
             var buffer = new byte[4];

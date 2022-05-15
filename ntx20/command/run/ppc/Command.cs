@@ -60,7 +60,7 @@ namespace ntx20.command.run.ppc
                 $"txt reader's match plus items, default={Constants.DefaultPlusMatch}",
                 CommandOptionType.SingleValue
                 );
-            var newLineOption = command.Option(@"-n|--newline <space>",
+            var newLineOption = command.Option(@"-n|--newline <eof>",
                 "txt reader's replace newline with",
                 CommandOptionType.SingleValue
                 );
@@ -127,9 +127,8 @@ namespace ntx20.command.run.ppc
             
             using var input = LazyStream.Input(InputUriOption, breaker);
             using var output = LazyStream.Output(OutputUriOption, "binary", breaker);
-
-            using var call = _opts.CreateCall();
-
+            Regex split = new Regex(SplitOption == "default" ? Constants.DefaultTextSplit : SplitOption);
+            Regex plus = new Regex(PlusOption == "default" ? Constants.DefaultPlusMatch : PlusOption);
 
             var configuration = new api.proto.Payload
             {
@@ -139,22 +138,14 @@ namespace ntx20.command.run.ppc
                 }
             };
 
-            var configured = await call.Configure(configuration, breaker);
-            var accepts = configured.Chunk.First(x => x.Key == "accepts").Tags.ToArray();
-            
-            _logger.LogInformation($"Task {_opts.TheService.Service}:{_opts.TheService.Version} configured");
-
-
-            Regex split = new Regex(SplitOption == "default" ? Constants.DefaultTextSplit : SplitOption);
-            Regex plus = new Regex(PlusOption == "default" ? Constants.DefaultPlusMatch : PlusOption);
-
             api.proto.Payload txt2v2t(string x)
             {
                 var r = new api.proto.Payload
                 {
                     Track = "v2t",
                 };
-                x += NewLineOption;
+                if(NewLineOption != "eof")
+                    x += NewLineOption;
 
                 foreach (var s in split.Split(x))
                 {
@@ -168,6 +159,56 @@ namespace ntx20.command.run.ppc
 
                 return r;
             }
+
+            async Task<api.proto.Payload> rewrite(api.proto.Payload x)
+            {
+                using var call = _opts.CreateStreaming();
+                var configured = await call.Configure(configuration, breaker);
+                var accepts = configured.Chunk.First(x => x.Key == "accepts").Tags.ToArray();
+                var p = new List<api.proto.Payload> { x }
+                .AsProtoSource()
+                .ViaTaskRunner(call, accepts, false)
+                .RemoveItem(x => (x.Tags.Contains("la")));
+                var ret = new api.proto.Payload { Track = "ppc" };
+
+                await foreach(var pp in p)
+                {
+                    ret.Chunk.AddRange(pp.Chunk);
+                }
+                ret.Chunk.Add(new api.proto.Item { Key = "txt", Type = "s", S = "\n" });
+                return ret;
+
+            }
+            if (IFormat == "text" && OFormat =="text" && NewLineOption == "eof")
+            {
+                _logger.LogInformation("Using line by line mode");
+                await input.AsTextChunkSource(breaker).ViaMapper(txt2v2t).ViaAsyncMapper(rewrite).RunWithSink(output.AsRawChunkSink(), autoFlush: Flush, cancellationToken: breaker);
+                return 0;
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+            using var call = _opts.CreateStreaming();
+
+
+           
+
+            var configured = await call.Configure(configuration, breaker);
+            var accepts = configured.Chunk.First(x => x.Key == "accepts").Tags.ToArray();
+            
+            _logger.LogInformation($"Task {_opts.TheService.Service}:{_opts.TheService.Version} configured");
+
+
+           
 
             var pipe = (IFormat switch
             {
