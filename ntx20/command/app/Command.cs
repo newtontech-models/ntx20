@@ -192,7 +192,7 @@ namespace ntx20.command.app
 
             if (Args.Contains("serve"))
             {
-                return Serve(app_home_local, ntx20_version, Args);
+                return Run(app_home_local, ntx20_version, Args);
             }
             else
             {
