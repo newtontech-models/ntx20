@@ -310,7 +310,7 @@ namespace ntx20.command.app
                 p.StandardOutput.Close();
                 p.StandardInput.Close();
                 p.StandardError.Close();
-                
+                Process.GetCurrentProcess().Kill();
                 return 0;
             }
             Console.Error.WriteLine(p.StandardError.ReadToEnd());
