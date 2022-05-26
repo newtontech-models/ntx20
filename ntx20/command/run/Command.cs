@@ -104,8 +104,14 @@ namespace ntx20.command.run
                     case "ntx20-ppc":
                         ppc.Command.Configure(command, options);
                         break;
-                    default:
+                    case "ntx20-adsp":
+                        adsp.Command.Configure(command, options);
                         break;
+                    case "ntx20-diar":
+                        diar.Command.Configure(command, options);
+                        break;
+                    default:
+                        throw new Exception($"Unsuported application type: {appType}");
                 }
 
 
