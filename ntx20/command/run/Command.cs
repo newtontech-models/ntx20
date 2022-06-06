@@ -27,6 +27,10 @@ namespace ntx20.command.run
             "derive application type from name",
             CommandOptionType.NoValue
             );
+            var httpVersionOption = command.Option(@"--httpversion <2.0>",
+            "set default http version",
+            CommandOptionType.SingleValue
+            );
 
             var resourceOption = command.Argument("task", "name:version@cluster  version is optional or latest, cluster is either https://usr:psw@example.com or environment variable", false); ;
             command.Description = "run the task";
@@ -66,7 +70,7 @@ namespace ntx20.command.run
 
                     if (!appTypeOption.HasValue())
                     {
-                        using (var httpClient = new HttpClient { DefaultRequestVersion = new Version(2, 0), BaseAddress = uri, DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher })
+                        using (var httpClient = new HttpClient { DefaultRequestVersion = new Version(httpVersionOption.GetValueOrDefault()), BaseAddress = uri, DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher })
                         {
 
                             if (uri.UserInfo.Length > 0)
