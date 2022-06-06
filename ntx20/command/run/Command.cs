@@ -23,18 +23,24 @@ namespace ntx20.command.run
         internal static void Configure(CommandLineApplication command, CommandLineOptions options)
         {
 
+            var appTypeOption = command.Option(@"-a",
+            "derive application type from name",
+            CommandOptionType.NoValue
+            );
 
             var resourceOption = command.Argument("task", "name:version@cluster  version is optional or latest, cluster is either https://usr:psw@example.com or environment variable", false); ;
+            command.Description = "run the task";
             if (options.TheService == null)
             {
-                command.Description = "run the task";
+                
                 
                 command.OnExecute(() =>
                 {
                     resourceOption.MustSetValue(command);
-                    
-                    
-                    
+
+                    var appType = appTypeOption.GetValueOrDefault();
+
+
                     var arg = resourceOption.Value;
 
                     var x = arg.Split("@", 2);
@@ -56,39 +62,58 @@ namespace ntx20.command.run
                         throw new Exception($"Invalid cluster format, requires https://usr:psw@example.com");
                     }
                     var uri = new Uri(cluster);
-                    
-                    using (var httpClient = new HttpClient { DefaultRequestVersion = new Version(2,0), BaseAddress = uri , DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher})
+
+
+                    if (!appTypeOption.HasValue())
                     {
-                        
-                        if (uri.UserInfo.Length > 0)
+                        using (var httpClient = new HttpClient { DefaultRequestVersion = new Version(2, 0), BaseAddress = uri, DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher })
                         {
-                            httpClient.DefaultRequestHeaders.Add($"Authorization", $"Basic {Convert.ToBase64String(System.Text.ASCIIEncoding.UTF8.GetBytes(uri.UserInfo))}");
-                        }
 
-                        var ret = httpClient.GetStringAsync($"/services/{taskname}");
-                        ret.Wait();
+                            if (uri.UserInfo.Length > 0)
+                            {
+                                httpClient.DefaultRequestHeaders.Add($"Authorization", $"Basic {Convert.ToBase64String(System.Text.ASCIIEncoding.UTF8.GetBytes(uri.UserInfo))}");
+                            }
 
-                        var service= new Google.Protobuf.JsonParser(Google.Protobuf.JsonParser.Settings.Default.WithIgnoreUnknownFields(true)).Parse<ntx20.api.proto.Service>(ret.Result);
-                        if(taskversion=="latest")
-                        {
-                            options.TheService = service.Versions.First();
-                            
-                        }
-                        else
-                        {
-                            options.TheService = service.Versions.First(x => x.Version == taskversion);
-                        }
+                            var ret = httpClient.GetStringAsync($"/services/{taskname}");
+                            ret.Wait();
 
+                            var service = new Google.Protobuf.JsonParser(Google.Protobuf.JsonParser.Settings.Default.WithIgnoreUnknownFields(true)).Parse<ntx20.api.proto.Service>(ret.Result);
+                            if (taskversion == "latest")
+                            {
+                                options.TheService = service.Versions.First();
+
+                            }
+                            else
+                            {
+                                options.TheService = service.Versions.First(x => x.Version == taskversion);
+                            }
+
+                        }
                     }
-                    var meta = new Metadata
+                    else
                     {
-                        //{ "service",  $"{options.TheService.Service}"},
-                        { "service",  $"{options.TheService.Service}:{options.TheService.Version}"},
-                        { "Authorization",  $"Basic {Convert.ToBase64String(System.Text.ASCIIEncoding.UTF8.GetBytes(uri.UserInfo))}"},
-                    };
+                        options.TheService = new ServiceVersion { 
+                            Service = taskname, 
+                            Version = taskversion,
+                            Labels = { {"app.type", $"ntx20-{taskname.Split("-").First()}" } }
+                        };
+                        
+                     
+                    }
+
+                    var meta = new Metadata{{ "Authorization",  $"Basic {Convert.ToBase64String(System.Text.ASCIIEncoding.UTF8.GetBytes(uri.UserInfo))}"}};
+                    if(options.TheService.Version.Length > 0 && options.TheService.Version!="latest")
+                    {
+                        meta.Add("service", $"{options.TheService.Service}:{options.TheService.Version}");
+                    }
+                    else
+                    {
+                        meta.Add("service", $"{options.TheService.Service}");
+                    }
 
                     options.Client = new EngineService.EngineServiceClient(GrpcChannel.ForAddress(uri));
                     options.CreateStreaming = () => options.Client.Streaming(meta);
+
                     options.Command = new Command(command);
                     return 0;
                 });
