@@ -80,7 +80,7 @@ namespace ntx20.api.io
                         void defer(HttpClient x) { x.Dispose(); }
 
                         var c = new HttpClient(_handler, false);
-                        var response = await c.GetAsync(Uri.EscapeDataString(uri), HttpCompletionOption.ResponseHeadersRead,token);
+                        var response = await c.GetAsync(Uri.EscapeUriString(uri), HttpCompletionOption.ResponseHeadersRead,token);
                         if (!response.IsSuccessStatusCode)
                         {
                             defer(c);
