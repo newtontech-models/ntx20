@@ -355,13 +355,12 @@ namespace ntx20.api.pipe
 
         public static async IAsyncEnumerable<proto.Payload> ViaGRPCCall(this IAsyncEnumerable<proto.Payload> source, Grpc.Core.AsyncDuplexStreamingCall<proto.Payload, proto.Payload> call)
         {
-            var upstream = source.RunWithSink(call.RequestStream.AsGrpcSink());
-
+            using var upstream = source.RunWithSink(call.RequestStream.AsGrpcSink());
+            
             await foreach (var i in call.ResponseStream.AsProtoSource())
             {
                 yield return i;
             }
-
             await upstream;
         }
 
@@ -380,15 +379,22 @@ namespace ntx20.api.pipe
             }
 
 
-            var writer = Task.Run(async () =>
+            using var writer = Task.Run(async () =>
             {
-                await foreach (var v in source.Remove(x => !accepts.Contains(x.Track)).ViaGRPCCall(call))
+
+                try
                 {
-                    bc.Add(v);
+                    await foreach (var v in source.Remove(x => !accepts.Contains(x.Track)).ViaGRPCCall(call))
+                    {
+                        bc.Add(v);
+                        _semaphore.Release();
+                    }
+                }
+                finally
+                {
+                    bc.CompleteAdding();
                     _semaphore.Release();
                 }
-                bc.CompleteAdding();
-                _semaphore.Release();
             });
 
 
@@ -399,7 +405,6 @@ namespace ntx20.api.pipe
                     break;
                 yield return bc.Take();
             }
-
 
             await writer;
         }

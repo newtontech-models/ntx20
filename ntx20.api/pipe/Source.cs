@@ -161,8 +161,8 @@ namespace ntx20.api.pipe
                     break; 
                 }
                 catch (Exception ex) {
-                    _logger.LogWarning(ex.ToString());
-                    break; 
+                    //_logger.LogWarning(ex.ToString());
+                    throw;
                 }
                 yield return requestStream.Current;
             }
