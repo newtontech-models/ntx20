@@ -173,7 +173,7 @@ namespace ntx20.command.run.atran
                 _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
             });
 
-            _logger.LogInformation($"Task  {_opts.TheService.Service}:{_opts.TheService.Version} completed");
+            _logger.LogInformation($"Task {_opts.TheService.Service}:{_opts.TheService.Version} completed");
             return 0;
         }
 

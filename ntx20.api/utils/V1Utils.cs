@@ -76,7 +76,11 @@ namespace ntx20.api.utils
             var ret = new proto.legacy.v2t.engine.Events();
             foreach(var item in payload.Chunk)
             {
-                ret.Events_.Add(item.ToV1());
+                var i = item.ToV1();
+                if (i != null)
+                {
+                    ret.Events_.Add(i);
+                }
             }
             return ret;
         }
