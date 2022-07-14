@@ -56,7 +56,7 @@ namespace ntx20.command.run
                     var uri = new Uri(cluster);
 
                     
-                    var appType= taskname.Split(new string[] { "/", "-" }, StringSplitOptions.RemoveEmptyEntries).Intersect(knowAppTypes).FirstOrDefault();
+                    var appType= x[0].Split(new string[] { "/", "-",":","." }, StringSplitOptions.RemoveEmptyEntries).Intersect(knowAppTypes).FirstOrDefault();
                         
                     
 
