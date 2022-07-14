@@ -19,36 +19,24 @@ namespace ntx20.command.run
 
     class Command : ICommand
     {
-
+        private static string[] knowAppTypes = new string[] { "atran","ppc","adsp", "diar" };
         internal static void Configure(CommandLineApplication command, CommandLineOptions options)
         {
-
-            var appTypeOption = command.Option(@"-a",
-            "derive application type from name",
-            CommandOptionType.NoValue
-            );
-            var httpVersionOption = command.Option(@"--httpversion <2.0>",
-            "set default http version",
-            CommandOptionType.SingleValue
-            );
 
             var resourceOption = command.Argument("task", "name:version@cluster  version is optional or latest, cluster is either https://usr:psw@example.com or environment variable", false); ;
             command.Description = "run the task";
             if (options.TheService == null)
             {
-                
-                
+
+
                 command.OnExecute(() =>
                 {
                     resourceOption.MustSetValue(command);
 
-                    var appType = appTypeOption.GetValueOrDefault();
-
-
                     var arg = resourceOption.Value;
 
                     var x = arg.Split("@", 2);
-                    if ( x.Length < 2)
+                    if (x.Length < 2)
                     {
                         throw new Exception("Invalid format, requires name:version@cluster");
                     }
@@ -61,50 +49,24 @@ namespace ntx20.command.run
                         taskversion = zz[1];
                     }
                     var cluster = x[1].StartsWith("http") ? x[1] : Environment.GetEnvironmentVariable(x[1]);
-                    if (cluster==null || ! cluster.StartsWith("http"))
+                    if (cluster == null || !cluster.StartsWith("http"))
                     {
                         throw new Exception($"Invalid cluster format, requires https://usr:psw@example.com");
                     }
                     var uri = new Uri(cluster);
 
+                    
+                    var appType= taskname.Split(new string[] { "/", "-" }, StringSplitOptions.RemoveEmptyEntries).Intersect(knowAppTypes).FirstOrDefault();
+                        
+                    
 
-                    if (!appTypeOption.HasValue())
-                    {
-                        using (var httpClient = new HttpClient { DefaultRequestVersion = new Version(httpVersionOption.GetValueOrDefault()), BaseAddress = uri, DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher })
-                        {
 
-                            if (uri.UserInfo.Length > 0)
-                            {
-                                httpClient.DefaultRequestHeaders.Add($"Authorization", $"Basic {Convert.ToBase64String(System.Text.ASCIIEncoding.UTF8.GetBytes(uri.UserInfo))}");
-                            }
-
-                            var ret = httpClient.GetStringAsync($"/services/{taskname}");
-                            ret.Wait();
-
-                            var service = new Google.Protobuf.JsonParser(Google.Protobuf.JsonParser.Settings.Default.WithIgnoreUnknownFields(true)).Parse<ntx20.api.proto.Service>(ret.Result);
-                            if (taskversion == "latest")
-                            {
-                                options.TheService = service.Versions.First();
-
-                            }
-                            else
-                            {
-                                options.TheService = service.Versions.First(x => x.Version == taskversion);
-                            }
-
-                        }
-                    }
-                    else
-                    {
-                        options.TheService = new ServiceVersion { 
+                    options.TheService = new ServiceVersion { 
                             Service = taskname, 
                             Version = taskversion,
-                            Labels = { {"app.type", $"ntx20-{taskname.Split("-").First()}" } }
-                        };
-                        
-                     
-                    }
-
+                            Labels = { {"app.type", $"ntx20-{appType}" } }
+                    };
+                    
                     var meta = new Metadata{{ "Authorization",  $"Basic {Convert.ToBase64String(System.Text.ASCIIEncoding.UTF8.GetBytes(uri.UserInfo))}"}};
                     if(options.TheService.Version.Length > 0 && options.TheService.Version!="latest")
                     {
@@ -117,7 +79,6 @@ namespace ntx20.command.run
 
                     options.Client = new EngineService.EngineServiceClient(GrpcChannel.ForAddress(uri));
                     options.CreateStreaming = () => options.Client.Streaming(meta);
-
                     options.Command = new Command(command);
                     return 0;
                 });
