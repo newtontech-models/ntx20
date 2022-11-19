@@ -14,6 +14,7 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -138,6 +139,7 @@ namespace ntx20.api.pipe
 
         public static async IAsyncEnumerable<string> ToText(this IAsyncEnumerable<proto.Payload> source, string track)
         {
+            Regex firstalpha = new Regex(@"^(\s*)(\S)(.*)$");
             await foreach (var x in source)
             {
                 if (x.Track != track)
@@ -148,7 +150,21 @@ namespace ntx20.api.pipe
                         continue;
                     if (v.Tags.Contains("la"))
                         continue;
-                    yield return v.S;
+
+                    var s = v.S;
+                    if (v.Tags.Contains("sos"))
+                    {
+
+                        s = firstalpha.Replace(s, m =>
+                        m.Groups[1].Value + m.Groups[2].Value.ToUpperInvariant() + m.Groups[3].Value
+                        );
+
+                    }
+
+
+                    yield return s;
+
+
                 }
             }
         }
