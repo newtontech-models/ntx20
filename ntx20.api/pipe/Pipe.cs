@@ -140,6 +140,54 @@ namespace ntx20.api.pipe
         public static async IAsyncEnumerable<string> ToText(this IAsyncEnumerable<proto.Payload> source, string track)
         {
             Regex firstalpha = new Regex(@"^(\s*)(\S)(.*)$");
+            bool fnoise = true;
+            await foreach (var x in source)
+            {
+                if (x.Track != track)
+                    continue;
+                foreach (var v in x.Chunk)
+                {
+                    if (v.Key != "txt")
+                        continue;
+                    if (v.Tags.Contains("la"))
+                        continue;
+
+                    var s = v.S;
+                    if (v.Tags.Contains("sos"))
+                    {
+
+                        s = firstalpha.Replace(s, m =>
+                        m.Groups[1].Value + m.Groups[2].Value.ToUpperInvariant() + m.Groups[3].Value
+                        );
+
+                    }
+                    if (v.Tags.Contains("noise")) {
+                        if (fnoise)
+                        {
+                            s = " *";
+                            fnoise = false;
+                        }
+                        else
+                        {
+                            s = "*";
+                        }
+                    }
+                    else
+                    {
+                        fnoise = true;
+                    }
+
+
+                    yield return s;
+
+
+                }
+            }
+        }
+
+        public static async IAsyncEnumerable<string> ToNText(this IAsyncEnumerable<proto.Payload> source, string track)
+        {
+            Regex firstalpha = new Regex(@"^(\s*)(\S)(.*)$");
             await foreach (var x in source)
             {
                 if (x.Track != track)
