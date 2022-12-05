@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace ntx20.api.utils
@@ -85,17 +85,35 @@ namespace ntx20.api.utils
             return ret;
         }
 
+        static Regex firstalpha = new Regex(@"^(\s*)(\S)(.*)$");
+        private static proto.legacy.v2t.engine.Event V2TxtToV1(this proto.Item item)
+        {
+
+            if (item.Tags.Contains("noise"))
+                return new proto.legacy.v2t.engine.Event { Label = new proto.legacy.v2t.engine.Event.Types.Label { Noise = item.S } };
+            if (item.Tags.Contains("+"))
+                return new proto.legacy.v2t.engine.Event { Label = new proto.legacy.v2t.engine.Event.Types.Label { Plus = item.S } };
+
+            if (item.Tags.Contains("sos"))
+            {
+                var s = item.S;
+                s = firstalpha.Replace(s, m =>
+                        m.Groups[1].Value + m.Groups[2].Value.ToUpperInvariant() + m.Groups[3].Value
+                        );
+                return new proto.legacy.v2t.engine.Event { Label = new proto.legacy.v2t.engine.Event.Types.Label { Item = s } };
+            }
+
+
+
+            return new proto.legacy.v2t.engine.Event { Label = new proto.legacy.v2t.engine.Event.Types.Label { Item = item.S } };
+        }
+
         private static proto.legacy.v2t.engine.Event ToV1(this proto.Item item)
         {
 
             return item.Key switch
             {
-                "txt" =>
-                    item.Tags.Contains("noise")
-                    ? new proto.legacy.v2t.engine.Event { Label = new proto.legacy.v2t.engine.Event.Types.Label { Noise = item.S } } :
-                    item.Tags.Contains("+")
-                    ? new proto.legacy.v2t.engine.Event { Label = new proto.legacy.v2t.engine.Event.Types.Label { Plus = item.S } } :
-                    new proto.legacy.v2t.engine.Event { Label = new proto.legacy.v2t.engine.Event.Types.Label { Item = item.S } },
+                "txt" => item.V2TxtToV1(),
                 "ts" =>
                     new proto.legacy.v2t.engine.Event { Timestamp = new proto.legacy.v2t.engine.Event.Types.Timestamp { Timestamp_ = (ulong)TimeSpan.FromMilliseconds(item.D).Ticks } },
                 "acnf" =>
@@ -110,6 +128,6 @@ namespace ntx20.api.utils
             };
         }
 
-        
+
     }
 }
