@@ -71,15 +71,28 @@ namespace ntx20.api.utils
             };
         }
 
-        public static proto.legacy.v2t.engine.Events ToV1(this proto.Payload payload)
+        public static List<proto.legacy.v2t.engine.Events> ToV1(this proto.Payload payload)
         {
-            var ret = new proto.legacy.v2t.engine.Events();
+            var x = new proto.legacy.v2t.engine.Events();
+            var ret = new List<proto.legacy.v2t.engine.Events>();
             foreach(var item in payload.Chunk)
             {
+                if(ret.Count == 0)
+                {
+                    x = new proto.legacy.v2t.engine.Events() { Lookahead = item.Tags.Contains("la")};
+                    ret.Add(x);
+                }
+
+                if(x.Lookahead != item.Tags.Contains("la"))
+                {
+                    x = new proto.legacy.v2t.engine.Events() { Lookahead = item.Tags.Contains("la") };
+                    ret.Add(x);
+                }
+
                 var i = item.ToV1();
                 if (i != null)
                 {
-                    ret.Events_.Add(i);
+                    x.Events_.Add(i);
                 }
             }
             return ret;

@@ -72,7 +72,7 @@ namespace ntx20.command.util.conv.tolegacy
             using var input = LazyStream.Input(InputUriOption, breaker);
             await input.AsProtoJsonSource<api.proto.Payload>(breaker)
                 .Remove(x => x.Track != TrackOption)
-                .ViaMapper(x => x.ToV1())
+                .ViaOneToMany(x => x.ToV1())
                 .RunWithSink(output.AsJsonProtoSink<api.proto.legacy.v2t.engine.Events>(), autoFlush: Flush, cancellationToken: breaker);
             return 0;
         }
