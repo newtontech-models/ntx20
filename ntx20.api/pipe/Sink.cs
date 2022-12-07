@@ -51,6 +51,10 @@ namespace ntx20.api.pipe
         {
             return new NullWriter<T>();
         }
+        public static IAsyncSink<api.proto.Payload> ConsolePayloadSink(string track)
+        {
+            return new ConsoleWriter(track);
+        }
 
 
     }

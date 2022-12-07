@@ -39,7 +39,7 @@ namespace ntx20.command.run.atran
                 );
 
             var oFormat = command.Option($"-w|--writer <json>",
-                "write output as json|proto|simple|text:v2t|text:ppc|text:pnc|ntext:v2t|ntext:ppc|ntext:pnc",
+                "write output as json|proto|simple|text:v2t|text:ppc|text:pnc|ntext:v2t|ntext:ppc|ntext:pnc|console:v2t|console:ppc|console:pnc",
                 CommandOptionType.SingleValue
                 );
             var flush = command.Option("-f|--flush",
@@ -173,6 +173,9 @@ namespace ntx20.command.run.atran
                 "ntext:v2t" => pipe.ToNText("v2t").RunWithSink(output.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
                 "ntext:ppc" => pipe.ToNText("ppc").RunWithSink(output.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
                 "ntext:pnc" => pipe.ToNText("pnc").RunWithSink(output.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
+                "console:v2t" => pipe.RunWithSink(Sink.ConsolePayloadSink("v2t"), autoFlush: Flush, cancellationToken: breaker),
+                "console:ppc" => pipe.RunWithSink(Sink.ConsolePayloadSink("ppc"), autoFlush: Flush, cancellationToken: breaker),
+                "console:pnc" => pipe.RunWithSink(Sink.ConsolePayloadSink("pnc"), autoFlush: Flush, cancellationToken: breaker),
                 _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
             });
 
