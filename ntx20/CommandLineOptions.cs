@@ -66,12 +66,12 @@ namespace ntx20
         public string Version { get; set; }
         public string LogFilter { get; set; }
 
-        public EngineService.EngineServiceClient Client { get; set; }
+        public Grpc.Net.Client.GrpcChannel Channel { get; set; }
         public Func<AsyncDuplexStreamingCall<api.proto.Payload,api.proto.Payload>> CreateStreaming { get; set; }
         
         public ntx20.api.proto.ServiceVersion TheService { get; set; }
 
-        private static string[] SplitAsCmdArguments(string args)
+        public static string[] SplitAsCmdArguments(string args)
         {
             char[] parmChars = args.ToCharArray();
             bool inSingleQuote = false;

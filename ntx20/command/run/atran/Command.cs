@@ -9,7 +9,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ntx20.api.utils;
-
+using System.IO;
+using System.Collections.Concurrent;
 
 namespace ntx20.command.run.atran
 {
@@ -18,18 +19,25 @@ namespace ntx20.command.run.atran
     {
         private static readonly ILogger _logger = Logging.LoggerFactory.CreateLogger("ntx20.command.run.atran");
 
-        internal static void Configure(CommandLineApplication command, CommandLineOptions options)
+        
+        internal static void Configure(CommandLineApplication command, CommandLineOptions options, bool dry = false)
         {
             command.Description = $"converts audio input to text";
             command.HelpOption("-h|--help");
-            command.FullName = $"Application: {options.TheService.Service}:{options.TheService.Version}";
+            if(options.TheService!=null)
+                command.FullName = $"Application: {options.TheService.Service}:{options.TheService.Version}";
 
             var inputUriOption = command.Option(@"-i|--input",
-            "input audio url",
+            "one mode: input audio url | batch mode: stream with command lines for individual tasks",
             CommandOptionType.SingleValue
             );
             var outputUriOption = command.Option("-o|--output <->",
-                 "output features url",
+                 "output result url",
+                 CommandOptionType.SingleValue
+                 );
+
+            var processingMode = command.Option("-m|--mode <one>",
+                 "processing mode one|batch:xx where xx is paralelism ",
                  CommandOptionType.SingleValue
                  );
 
@@ -46,6 +54,9 @@ namespace ntx20.command.run.atran
                 "enable flush on every write",
                 CommandOptionType.NoValue
                 );
+            var retryOption = command.Option("--retry <28:1000:1.5>"
+              , "retry with exponencial backof count:initDelayMs:multiplier"
+             , CommandOptionType.SingleValue);
 
             /*input*/
             command.ExtendedHelpText = Environment.NewLine + "Options: " + Environment.NewLine;
@@ -86,6 +97,7 @@ namespace ntx20.command.run.atran
             command.OnExecute(() =>
             {
 
+                
                 inputUriOption.MustSetValue(command);
 
                 options.Command = new Command(command, options)
@@ -100,7 +112,10 @@ namespace ntx20.command.run.atran
                     Flush = flush.HasValue(),
                     Pipe = pipe.HasValue(),
                     DecoderFeatures = decoderFeatures.GetValueOrDefault(),
-                    LexiconUrlOption = lexiconOption.GetValueOrDefault()
+                    LexiconUrlOption = lexiconOption.GetValueOrDefault(),
+                    ProcessingMode = processingMode.GetValueOrDefault().StartsWith("batch:") ? "batch" : processingMode.GetValueOrDefault(),
+                    Parallelism = processingMode.GetValueOrDefault().StartsWith("batch:") ? uint.Parse(processingMode.GetValueOrDefault()[6..]) : 1,
+                    Retry = api.util.RetryWithBackoff.ParseFromCmd(retryOption.GetValueOrDefault())
 
                 };
 
@@ -119,9 +134,13 @@ namespace ntx20.command.run.atran
 
         private string LexiconUrlOption { get; set; }
         private string DecoderFeatures { get; set; }
+
+        private string ProcessingMode { get; set; }
+        private uint Parallelism { get; set; }
         private bool Pipe { get; set; }
 
         private bool Flush { get; set; }
+        private api.util.RetryWithBackoff Retry { get; set; }
         public Command(CommandLineApplication app, CommandLineOptions opts)
         {
             _app = app;
@@ -129,57 +148,139 @@ namespace ntx20.command.run.atran
         }
         public async Task<int> RunAsync(CancellationToken breaker)
         {
+            if(ProcessingMode == "one")
+                return await RunOneAsync(this, breaker);
+            if (ProcessingMode != "batch")
+                throw new NotImplementedException($"mode: {ProcessingMode}");
 
-            using var input = LazyStream.Input(InputUriOption, breaker);
-            using var output = LazyStream.Output(OutputUriOption, "binary", breaker);
+            //TODO redesign this pyramidal ubershit
+
+            using BlockingCollection<string> bc = Parallelism== 0 ? new BlockingCollection<string>() : new BlockingCollection<string>(2*(int)Parallelism);
+            using var writer = Task.Run(async () =>
+            {
+                using (var reader = new StreamReader(LazyStream.Input(InputUriOption, breaker)))
+                {
+                    while (true)
+                    {
+                        var line = await reader.ReadLineAsync();
+                        if (line == null)
+                            break;
+                        if (line.Trim().StartsWith("#"))
+                        {
+                            continue;
+                        }
+                        bc.Add(line);
+                    }
+                }
+                bc.CompleteAdding();
+            });
+
+            Task[] readers = new Task[Parallelism];
+            
+            long total_count = 0;
+            for(var i=0;i<Parallelism; i++)
+            {
+                _logger.LogInformation($"Starting worker {_opts.TheService.Service}:{_opts.TheService.Version}/{i}");
+                readers[i] = Task.Run(async() =>
+                {
+                    long z = i;
+                    long count = 0;
+                    foreach (var task_command in bc.GetConsumingEnumerable()){
+                        var app = new CommandLineApplication();
+                        var opts = new CommandLineOptions();
+                        Configure(app, opts, true);
+                        app.Execute(CommandLineOptions.SplitAsCmdArguments(task_command));
+                        var task_params = opts.Command as Command;
+                        
+                        var _retry = Retry.Clone();
+                        try
+                        {
+                            
+                            await RunOneAsync(task_params, breaker);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning($"{task_params.InputUriOption}  failed: {ex.Message}");
+                            if (breaker.IsCancellationRequested)
+                                throw;
+                            if (await _retry.Next(breaker))
+                                throw;
+                            _logger.LogWarning($"{task_params.InputUriOption}  retry #{_retry.Retry} of {_retry.MaxRetries}");
+
+                        }
+                        Interlocked.Increment(ref total_count);
+                        count++;
+                        _logger.LogInformation($"{task_params.InputUriOption} completed {z}/{count}/{total_count}");
+                    }
+                    _logger.LogInformation($"Finishing worker {_opts.TheService.Service}:{_opts.TheService.Version}/{z}");
+                });
+            }
+
+            await Task.WhenAll(readers);
+
+            return readers.Where(x => x.IsFaulted).Count();
+
+        }
+        public async Task<int> RunOneAsync(Command param,  CancellationToken breaker)
+        {
+
+            
             
             using var call = _opts.CreateStreaming();
 
+
+            using var input = LazyStream.Input(param.InputUriOption, breaker);
+            using var output = LazyStream.Output(param.OutputUriOption, "binary", breaker);
             var configuration = new api.proto.Payload
             {
                 Chunk =
-                {
-                    new api.proto.Item{ Key = Const.i_audio_format, S = AudioFormatOption, Type = "s" },
-                    new api.proto.Item { Key = Const.i_audio_channel, S = ChannelOption, Type = "s" },
-                    new api.proto.Item { Key = Const.features, S = DecoderFeatures, Type = "s" },
-                    CmdUtils.LexiconFromUrl(LexiconUrlOption)
-                }
+                    {
+                        new api.proto.Item{ Key = Const.i_audio_format, S = param.AudioFormatOption, Type = "s" },
+                        new api.proto.Item { Key = Const.i_audio_channel, S = param.ChannelOption, Type = "s" },
+                        new api.proto.Item { Key = Const.features, S = param.DecoderFeatures, Type = "s" },
+                        CmdUtils.LexiconFromUrl(param.LexiconUrlOption)
+                    }
             };
-            
+
+
+
+
             var configured = await call.Configure(configuration, breaker);
             var accepts = configured.Chunk.First(x => x.Key == "accepts").Tags.ToArray();
 
-            _logger.LogInformation($"Task {_opts.TheService.Service}:{_opts.TheService.Version} configured");
+            if(param._opts.TheService!=null)
+                _logger.LogInformation($"Task {param._opts.TheService.Service}:{param._opts.TheService.Version} configured");
 
-            var pipe = (IFormat switch
+            var pipe = (param.IFormat switch
             {
                 "raw" => input.AsRawAudioSource(chunkSize: (int)ChunkSizeBytes, cancellationToken: breaker),
                 "proto" => input.AsProtoBinarySource<api.proto.Payload>(breaker),
                 "json" => input.AsProtoJsonSource<api.proto.Payload>(breaker),
-                _ => throw new NotImplementedException($"unsuported input format {IFormat}"),
+                _ => throw new NotImplementedException($"unsuported input format {param.IFormat}"),
             });
 
 
             pipe = pipe.ViaTaskRunner(call, accepts, Pipe);
 
-            await (OFormat switch
+            await (param.OFormat switch
             {
-                "proto" => pipe.RunWithSink(output.AsBinaryProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker),
-                "json" => pipe.RunWithSink(output.AsJsonProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker),
-                "simple" => pipe.ToSimpleText().RunWithSink(output.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
-                "text:v2t" => pipe.ToText("v2t").RunWithSink(output.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
-                "text:ppc" => pipe.ToText("ppc").RunWithSink(output.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
-                "text:pnc" => pipe.ToText("pnc").RunWithSink(output.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
-                "ntext:v2t" => pipe.ToNText("v2t").RunWithSink(output.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
-                "ntext:ppc" => pipe.ToNText("ppc").RunWithSink(output.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
-                "ntext:pnc" => pipe.ToNText("pnc").RunWithSink(output.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
-                "console:v2t" => pipe.RunWithSink(Sink.ConsolePayloadSink("v2t"), autoFlush: Flush, cancellationToken: breaker),
-                "console:ppc" => pipe.RunWithSink(Sink.ConsolePayloadSink("ppc"), autoFlush: Flush, cancellationToken: breaker),
-                "console:pnc" => pipe.RunWithSink(Sink.ConsolePayloadSink("pnc"), autoFlush: Flush, cancellationToken: breaker),
-                _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
+                "proto" => pipe.RunWithSink(output.AsBinaryProtoSink<api.proto.Payload>(), autoFlush: param.Flush, cancellationToken: breaker),
+                "json" => pipe.RunWithSink(output.AsJsonProtoSink<api.proto.Payload>(), autoFlush: param.Flush, cancellationToken: breaker),
+                "simple" => pipe.ToSimpleText().RunWithSink(output.AsTextChunkSink(), autoFlush: param.Flush, cancellationToken: breaker),
+                "text:v2t" => pipe.ToText("v2t").RunWithSink(output.AsTextChunkSink(), autoFlush: param.Flush, cancellationToken: breaker),
+                "text:ppc" => pipe.ToText("ppc").RunWithSink(output.AsTextChunkSink(), autoFlush: param.Flush, cancellationToken: breaker),
+                "text:pnc" => pipe.ToText("pnc").RunWithSink(output.AsTextChunkSink(), autoFlush: param.Flush, cancellationToken: breaker),
+                "ntext:v2t" => pipe.ToNText("v2t").RunWithSink(output.AsTextChunkSink(), autoFlush: param.Flush, cancellationToken: breaker),
+                "ntext:ppc" => pipe.ToNText("ppc").RunWithSink(output.AsTextChunkSink(), autoFlush: param.Flush, cancellationToken: breaker),
+                "ntext:pnc" => pipe.ToNText("pnc").RunWithSink(output.AsTextChunkSink(), autoFlush: param.Flush, cancellationToken: breaker),
+                "console:v2t" => pipe.RunWithSink(Sink.ConsolePayloadSink("v2t"), autoFlush: param.Flush, cancellationToken: breaker),
+                "console:ppc" => pipe.RunWithSink(Sink.ConsolePayloadSink("ppc"), autoFlush: param.Flush, cancellationToken: breaker),
+                "console:pnc" => pipe.RunWithSink(Sink.ConsolePayloadSink("pnc"), autoFlush: param.Flush, cancellationToken: breaker),
+                _ => throw new NotImplementedException($"unsuported output format {param.OFormat}"),
             });
 
-            _logger.LogInformation($"Task {_opts.TheService.Service}:{_opts.TheService.Version} completed");
+            if (param._opts.TheService != null)
+                _logger.LogInformation($"Task {param._opts.TheService.Service}:{param._opts.TheService.Version} completed");
             return 0;
         }
 
