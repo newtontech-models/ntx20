@@ -9,7 +9,7 @@ namespace ntx20.api.io
 {
     public static partial class StreamProvider
     {
-        public static Func<Task<Stream>> Output(string uri, string contentType, CancellationToken token = default)
+        public static Func<Task<Stream>> Output(string uri, string contentType, CancellationToken token = default, bool createDir = false)
         {
             //preprocess
             if (uri.StartsWith("file://"))
@@ -22,7 +22,20 @@ namespace ntx20.api.io
                 return () => Task.FromResult(Console.OpenStandardOutput());
             }
 
-            return () => Task.FromResult(new FileStream(uri, FileMode.Create, FileAccess.Write, FileShare.Read) as Stream);
+            return () => Task.Run(() =>
+            {
+                var dir = Path.GetDirectoryName(uri);
+                if(dir.Length>0 && createDir)
+                {
+                    Directory.CreateDirectory(dir);
+                }
+                return new PartFileStream(uri) as Stream;
+            }
+                );
+            
+            
+            
+            
         }
     }
 }

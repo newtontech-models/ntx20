@@ -54,7 +54,15 @@ namespace ntx20.command.run.atran
                 "enable flush on every write",
                 CommandOptionType.NoValue
                 );
-            var retryOption = command.Option("--retry <28:1000:1.5>"
+            var overwrite = command.Option("-y",
+                "overwrite existing output",
+                CommandOptionType.NoValue
+                );
+            var nomkdir = command.Option("-m",
+                "dont create output path if not exist",
+                CommandOptionType.NoValue
+                );
+            var retryOption = command.Option("--retry <10:1000:1.5>"
               , "retry with exponencial backof count:initDelayMs:multiplier"
              , CommandOptionType.SingleValue);
 
@@ -115,7 +123,11 @@ namespace ntx20.command.run.atran
                     LexiconUrlOption = lexiconOption.GetValueOrDefault(),
                     ProcessingMode = processingMode.GetValueOrDefault().StartsWith("batch:") ? "batch" : processingMode.GetValueOrDefault(),
                     Parallelism = processingMode.GetValueOrDefault().StartsWith("batch:") ? uint.Parse(processingMode.GetValueOrDefault()[6..]) : 1,
-                    Retry = api.util.RetryWithBackoff.ParseFromCmd(retryOption.GetValueOrDefault())
+                    Retry = api.util.RetryWithBackoff.ParseFromCmd(retryOption.GetValueOrDefault()),
+                    DontMakeDirs = nomkdir.HasValue(),
+                    OverWrite = overwrite.HasValue(),
+
+
 
                 };
 
@@ -138,7 +150,9 @@ namespace ntx20.command.run.atran
         private string ProcessingMode { get; set; }
         private uint Parallelism { get; set; }
         private bool Pipe { get; set; }
-
+        
+        private bool DontMakeDirs { get; set; }
+        private bool OverWrite { get; set; }
         private bool Flush { get; set; }
         private api.util.RetryWithBackoff Retry { get; set; }
         public Command(CommandLineApplication app, CommandLineOptions opts)
@@ -228,9 +242,21 @@ namespace ntx20.command.run.atran
             
             using var call = _opts.CreateStreaming();
 
+            bool isFile = param.OutputUriOption != "-";
 
             using var input = LazyStream.Input(param.InputUriOption, breaker);
-            using var output = LazyStream.Output(param.OutputUriOption, "binary", breaker);
+            if(isFile && File.Exists(param.OutputUriOption))
+            {
+                if (!OverWrite)
+                {
+                    _logger.LogWarning($"Allready exists, skipping {param.OutputUriOption}");
+                    return 0;
+                }
+
+                
+            }
+            using var output = LazyStream.Output(param.OutputUriOption, "binary", breaker,!DontMakeDirs);
+
             var configuration = new api.proto.Payload
             {
                 Chunk =
@@ -278,6 +304,7 @@ namespace ntx20.command.run.atran
                 "console:pnc" => pipe.RunWithSink(Sink.ConsolePayloadSink("pnc"), autoFlush: param.Flush, cancellationToken: breaker),
                 _ => throw new NotImplementedException($"unsuported output format {param.OFormat}"),
             });
+            output.Complete();
 
             if (param._opts.TheService != null)
                 _logger.LogInformation($"Task {param._opts.TheService.Service}:{param._opts.TheService.Version} completed");

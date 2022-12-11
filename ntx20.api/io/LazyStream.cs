@@ -7,7 +7,12 @@ using System.Threading.Tasks;
 
 namespace ntx20.api.io
 {
-    public class LazyStream : Stream
+    interface ICompleteStream
+    {
+        void Complete();
+    }
+
+    public class LazyStream : Stream, ICompleteStream, IDisposable
     {
         Stream _stream;
         readonly Func<Task<Stream>> fetcher;
@@ -33,9 +38,9 @@ namespace ntx20.api.io
         {
             return new LazyStream(StreamProvider.Input(url),true);
         }
-        public static LazyStream Output(string url, string contentType, CancellationToken token = default)
+        public static LazyStream Output(string url, string contentType, CancellationToken token = default, bool createDir=false)
         {
-            return new LazyStream(StreamProvider.Output(url,contentType),false);
+            return new LazyStream(StreamProvider.Output(url,contentType, token, createDir),false);
         }
 
         public override bool CanRead => input;
@@ -77,6 +82,16 @@ namespace ntx20.api.io
             Stream().Write(buffer, offset, count);
             position += count;
         }
+
+        public void Complete()
+        {
+            
+            if(Stream() is ICompleteStream)
+            {
+                (Stream() as ICompleteStream).Complete();
+            }
+        }
+
         protected override void Dispose(bool disposing)
         {
             if (disposing && _stream != null)
