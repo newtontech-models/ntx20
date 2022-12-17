@@ -63,7 +63,7 @@ namespace ntx20.command.run.atran
                 CommandOptionType.NoValue
                 );
             var retryOption = command.Option("--retry <10:1000:1.5>"
-              , "retry with exponencial backof count:initDelayMs:multiplier"
+              , "retry with exponencial backoff (batch mode only) count:initDelayMs:multiplier"
              , CommandOptionType.SingleValue);
 
             /*input*/
@@ -205,26 +205,27 @@ namespace ntx20.command.run.atran
                         Configure(app, opts, true);
                         app.Execute(CommandLineOptions.SplitAsCmdArguments(task_command));
                         var task_params = opts.Command as Command;
-                        
                         var _retry = Retry.Clone();
-                        try
+                        while (true)
                         {
-                            
-                            await RunOneAsync(task_params, breaker);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning($"{task_params.InputUriOption}  failed: {ex.Message}");
-                            if (breaker.IsCancellationRequested)
-                                throw;
-                            if (await _retry.Next(breaker))
-                                throw;
-                            _logger.LogWarning($"{task_params.InputUriOption}  retry #{_retry.Retry} of {_retry.MaxRetries}");
-
+                            try
+                            {
+                                await RunOneAsync(task_params, breaker);
+                                break;
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning($"Failed: {ex.Message} => {task_params.InputUriOption}");
+                                if (breaker.IsCancellationRequested)
+                                    throw;
+                                if (await _retry.Next(breaker))
+                                    throw;
+                                _logger.LogWarning($"Retry: #{_retry.Retry}/{_retry.MaxRetries} => {task_params.InputUriOption}");
+                            }
                         }
                         Interlocked.Increment(ref total_count);
                         count++;
-                        _logger.LogInformation($"{task_params.InputUriOption} completed {z}/{count}/{total_count}");
+                        _logger.LogInformation($"Completed: {z}/{count}/{total_count} => {task_params.InputUriOption}");
                     }
                     _logger.LogInformation($"Finishing worker {_opts.TheService.Service}:{_opts.TheService.Version}/{z}");
                 });
