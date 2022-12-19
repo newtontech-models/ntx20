@@ -183,6 +183,7 @@ namespace ntx20.command.run.ppc
             {
                 _logger.LogInformation("Using line by line mode");
                 await input.AsTextChunkSource(breaker).ViaMapper(txt2v2t).ViaAsyncMapper(rewrite).RunWithSink(output.AsRawChunkSink(), autoFlush: Flush, cancellationToken: breaker);
+                output.Complete();
                 return 0;
             }
 
@@ -228,7 +229,7 @@ namespace ntx20.command.run.ppc
                 "text" => pipe.RemoveItem(x=> (x.Tags.Contains("la"))).RunWithSink(output.AsRawChunkSink(), autoFlush: Flush, cancellationToken: breaker),
                 _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
             });
-
+            output.Complete();
             _logger.LogInformation($"Task  {_opts.TheService.Service}:{_opts.TheService.Version} completed");
             return 0;
         }

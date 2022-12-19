@@ -428,6 +428,36 @@ namespace ntx20.api.pipe
             await call.ResponseStream.MoveNext(cancellationToken);
             return call.ResponseStream.Current;
         }
+        public static async IAsyncEnumerable<proto.Payload> ViaClientMetaInjector(this IAsyncEnumerable<proto.Payload> source, Dictionary<string,string> labels)
+        {
+            var meta = new api.proto.Item { Key = "meta"};
+            meta.Labels.Add(labels);
+            
+            await foreach (var i in source)
+            {
+                i.Chunk.Add(meta.Clone());
+                yield return i;
+            }
+        }
+        public static async IAsyncEnumerable<proto.Payload> ViaOCWrapper(this IAsyncEnumerable<proto.Payload> source)
+        {
+            bool first = true;
+            await foreach (var i in source)
+            {
+                if (first)
+                {
+                    yield return new Payload { Track = "open" };
+                    first = false;
+                }
+                yield return i;
+            }
+
+            if (!first)
+            {
+                yield return new Payload { Track = "close" };
+            }
+
+        }
 
         public static async IAsyncEnumerable<proto.Payload> ViaGRPCCall(this IAsyncEnumerable<proto.Payload> source, Grpc.Core.AsyncDuplexStreamingCall<proto.Payload, proto.Payload> call)
         {

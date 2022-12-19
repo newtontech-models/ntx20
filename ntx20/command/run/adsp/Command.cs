@@ -160,7 +160,7 @@ namespace ntx20.command.run.adsp
                 "htk:stream" => pipe.ToRawHtk(configured, false).RunWithSink(output.AsRawChunkSink(), autoFlush: Flush),
                 _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
             });
-
+            output.Complete();
             _logger.LogInformation($"Task  {_opts.TheService.Service}:{_opts.TheService.Version} completed");
             return 0;
         }

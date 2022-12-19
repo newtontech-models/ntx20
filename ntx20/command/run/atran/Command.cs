@@ -50,15 +50,23 @@ namespace ntx20.command.run.atran
                 "write output as json|proto|simple|text:v2t|text:ppc|text:pnc|ntext:v2t|ntext:ppc|ntext:pnc|console:v2t|console:ppc|console:pnc",
                 CommandOptionType.SingleValue
                 );
+            var label=command.Option($"-l| --label",
+                "add client metadata to every chunk --label name:value",
+                CommandOptionType.MultipleValue
+                );
+            var wrap = command.Option("--wrap",
+                "wrap stream with open and close message",
+                CommandOptionType.NoValue
+                );
             var flush = command.Option("-f|--flush",
                 "enable flush on every write",
                 CommandOptionType.NoValue
                 );
-            var overwrite = command.Option("-y",
+            var overwrite = command.Option("--overwrite",
                 "overwrite existing output",
                 CommandOptionType.NoValue
                 );
-            var nomkdir = command.Option("-m",
+            var nomkdir = command.Option("--nodirs",
                 "dont create output path if not exist",
                 CommandOptionType.NoValue
                 );
@@ -126,8 +134,8 @@ namespace ntx20.command.run.atran
                     Retry = api.util.RetryWithBackoff.ParseFromCmd(retryOption.GetValueOrDefault()),
                     DontMakeDirs = nomkdir.HasValue(),
                     OverWrite = overwrite.HasValue(),
-
-
+                    Wrap = wrap.HasValue(),
+                    Labels = label.HasValue() ? label.Values.ToDictionary(x=>  x.Split(':', 2)[0], x=> x.Split(':', 2)[1]) : null,
 
                 };
 
@@ -154,6 +162,10 @@ namespace ntx20.command.run.atran
         private bool DontMakeDirs { get; set; }
         private bool OverWrite { get; set; }
         private bool Flush { get; set; }
+
+        private bool Wrap { get; set; }
+
+        private Dictionary<string,string> Labels { get; set; }
         private api.util.RetryWithBackoff Retry { get; set; }
         public Command(CommandLineApplication app, CommandLineOptions opts)
         {
@@ -183,7 +195,9 @@ namespace ntx20.command.run.atran
                         {
                             continue;
                         }
-                        bc.Add(line);
+                        if (line.Trim().Length == 0)
+                            continue;
+                        bc.Add(line.Trim());
                     }
                 }
                 bc.CompleteAdding();
@@ -203,7 +217,8 @@ namespace ntx20.command.run.atran
                         var app = new CommandLineApplication();
                         var opts = new CommandLineOptions();
                         Configure(app, opts, true);
-                        app.Execute(CommandLineOptions.SplitAsCmdArguments(task_command));
+                        var args = CommandLineOptions.SplitAsCmdArguments(task_command);
+                        app.Execute(args);
                         var task_params = opts.Command as Command;
                         var _retry = Retry.Clone();
                         while (true)
@@ -288,6 +303,11 @@ namespace ntx20.command.run.atran
 
 
             pipe = pipe.ViaTaskRunner(call, accepts, Pipe);
+            if (param.Wrap || Wrap)
+                pipe = pipe.ViaOCWrapper();
+
+            if (param.Labels != null)
+                pipe = pipe.ViaClientMetaInjector(param.Labels);
 
             await (param.OFormat switch
             {

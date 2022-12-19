@@ -160,7 +160,7 @@ namespace ntx20.command.run.diar
                 "json" => pipe.RunWithSink(output.AsJsonProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker),
                 _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
             });
-
+            output.Complete();
             _logger.LogInformation($"Task  {_opts.TheService.Service}:{_opts.TheService.Version} completed");
             return 0;
         }
