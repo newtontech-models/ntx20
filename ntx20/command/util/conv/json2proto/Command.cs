@@ -64,6 +64,7 @@ namespace ntx20.command.util.conv.json2proto
             using var input = LazyStream.Input(InputUriOption, breaker);
 
             await input.AsProtoJsonSource<api.proto.Payload>(breaker).RunWithSink(output.AsBinaryProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker);
+            output.Complete();
             return 0;
         }
     }

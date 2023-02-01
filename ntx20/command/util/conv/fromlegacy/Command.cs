@@ -71,6 +71,7 @@ namespace ntx20.command.util.conv.fromlegacy
             using var output = LazyStream.Output(OutputUriOption, "binary", breaker);
             using var input = LazyStream.Input(InputUriOption, breaker);
             await input.AsProtoJsonSource<api.proto.legacy.v2t.engine.Events>(breaker).ViaMapper(x => x.ToV2(TrackOption)).RunWithSink(output.AsJsonProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker);
+            output.Complete();
             return 0;
         }
     }

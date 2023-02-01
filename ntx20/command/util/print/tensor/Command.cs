@@ -73,6 +73,7 @@ namespace ntx20.command.util.print.tensor
 
 
             await pipe.PrintTensor().RunWithSink(output.AsRawChunkSink(), autoFlush: true);
+            output.Complete();
             return 0;
         }
     }

@@ -74,6 +74,7 @@ namespace ntx20.command.util.conv.tolegacy
                 .Remove(x => x.Track != TrackOption)
                 .ViaOneToMany(x => x.ToV1())
                 .RunWithSink(output.AsJsonProtoSink<api.proto.legacy.v2t.engine.Events>(), autoFlush: Flush, cancellationToken: breaker);
+            output.Complete();
             return 0;
         }
     }
