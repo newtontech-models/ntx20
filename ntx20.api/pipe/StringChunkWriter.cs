@@ -18,6 +18,10 @@ namespace ntx20.api.pipe
         }
         public async Task FlushAsync(CancellationToken cancellationToken = default)
         {
+            if (stream == null)
+            {
+                stream = new StreamWriter(streamResolver, new UTF8Encoding(false));
+            }
             await stream.FlushAsync();
         }
         public async  Task WriteAsync(string item, CancellationToken cancellationToken = default)
@@ -31,6 +35,10 @@ namespace ntx20.api.pipe
         }
         public Task CompleteAsync(CancellationToken cancellationToken = default)
         {
+            if (stream == null)
+            {
+                stream = new StreamWriter(streamResolver, new UTF8Encoding(false));
+            }
             return Task.CompletedTask;
         }
     }
