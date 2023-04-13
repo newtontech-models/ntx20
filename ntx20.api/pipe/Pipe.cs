@@ -17,6 +17,7 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 
 namespace ntx20.api.pipe
 {
@@ -482,14 +483,13 @@ namespace ntx20.api.pipe
         public static async IAsyncEnumerable<proto.Payload> ViaTaskRunner(this IAsyncEnumerable<proto.Payload> source, Grpc.Core.AsyncDuplexStreamingCall<proto.Payload, proto.Payload> call,
             string[] accepts, bool pipeMode, int bufferSize = 10)
         {
-            using BlockingCollection<proto.Payload> bc = bufferSize == 0 ? new BlockingCollection<proto.Payload>() : new BlockingCollection<proto.Payload>(bufferSize);
-            SemaphoreSlim _semaphore = new SemaphoreSlim(0);
+            BufferBlock<proto.Payload> bb = bufferSize == 0 ? new BufferBlock<Payload>() :
+                new BufferBlock<Payload>(new DataflowBlockOptions { BoundedCapacity = bufferSize });
 
             if (pipeMode)
             {
-                source = source.Intercept(x => {
-                    bc.Add(x.Clone());
-                    _semaphore.Release();
+                source = source.InterceptAsync(async x => {
+                    await bb.SendAsync(x.Clone());
                 });
             }
 
@@ -501,24 +501,19 @@ namespace ntx20.api.pipe
                 {
                     await foreach (var v in source.Remove(x => !accepts.Contains(x.Track)).ViaGRPCCall(call))
                     {
-                        bc.Add(v);
-                        _semaphore.Release();
+                        await bb.SendAsync(v);
                     }
                 }
                 finally
                 {
-                    bc.CompleteAdding();
-                    _semaphore.Release();
+                    bb.Complete();
                 }
             });
 
 
-            while (true)
+            while (await bb.OutputAvailableAsync())
             {
-                await _semaphore.WaitAsync();
-                if (bc.IsCompleted)
-                    break;
-                yield return bc.Take();
+                yield return await bb.ReceiveAsync();
             }
 
             await writer;

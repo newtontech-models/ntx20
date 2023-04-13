@@ -197,15 +197,6 @@ namespace ntx20.api.pipe
             }
 
         }
-
-        public static async IAsyncEnumerable<T> AsProtoSource<T>(this BlockingCollection<T> bc)
-        {
-            foreach (var x in bc.GetConsumingEnumerable())
-            {
-                yield return await Task.FromResult(x);
-            }
-        }
-
         public static async IAsyncEnumerable<T> AsProtoSource<T>(this List<T> bc)
         {
             foreach (var x in bc)
