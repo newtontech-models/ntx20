@@ -424,7 +424,16 @@ namespace ntx20.api.pipe
 
         public static async Task<proto.Payload> Configure(this Grpc.Core.AsyncDuplexStreamingCall<proto.Payload, proto.Payload> call, proto.Payload config, CancellationToken cancellationToken)
         {
+            
             await call.RequestStream.WriteAsync(config);
+            var meta = await call.ResponseHeadersAsync;
+            foreach (var item in meta)
+            {
+                if (!item.IsBinary)
+                {
+                    _logger.LogInformation($"{item.Key}={item.Value}");
+                }
+            }
             await call.ResponseStream.MoveNext(cancellationToken);
             return call.ResponseStream.Current;
         }
