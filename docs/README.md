@@ -48,7 +48,7 @@ Configuration message is a Payload message with following items/keys:
 ### audio-format
 is one of folowing string values (type="s"):
 - auto:0 - automatic audio format/codec detection, zero means automatic probe size in bytes
-- pcm:$pcmFormat:$sampleRate:$channelLayout, where 
+- pcm:pcmFormat:sampleFormat:sampleRate:channelLayout, where 
     - pcmFormats={"s16le", "alaw", "mulaw"}
     - sampleFormats={ "i2" }
     - sampleRates = { "8000", "16000", "32000", "48000", "96000", "11025", "22050", "44100" }
