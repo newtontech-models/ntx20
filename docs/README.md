@@ -9,11 +9,11 @@ Authorization: Basic base64_encode(username:password)
 ## Task selection
 Set the grpc header "service" e.g.:
 ```
-service: atran-ru-openelex
+service: atran-cz-openlex
 ```
 or with specific version:
 ```
-service: atran-ru-openelex:2023.11.1-spc
+service: atran-cz-openlex:2023.11.1-spc
 ```
 ## General message flow
 Client starts by sending configuration message and continues with sending payload. At the same time client receives configuration confirmation message followed by the stream of payload messages. Both the input/output grpc streams are multiplexed, i.e. they are composed of several track streams and every track consists of several chunks of data specified by Item message.  Every application type (atran, vad, ppc, pnc, diar, etc.) has defined specific message flow.
