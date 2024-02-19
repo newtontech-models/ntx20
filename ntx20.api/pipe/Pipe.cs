@@ -1,5 +1,4 @@
 ﻿using Google.Protobuf;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.Extensions.Logging;
 
 using ntx20.api.proto;

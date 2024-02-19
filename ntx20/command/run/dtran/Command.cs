@@ -94,7 +94,7 @@ namespace ntx20.command.run.dtran
             command.ExtendedHelpText += channelOption.RenderOption();
 
             var decoderFeatures = command.Option($"--{Const.features} <none>",
-                 $"features (lookahead,latency,novad,nospk,novprint,noptc)",
+                 $"features (lookahead,latency,novad,nospk,novprint,notpc)",
                 CommandOptionType.SingleValue
                 );
 
