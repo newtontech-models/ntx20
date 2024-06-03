@@ -6,19 +6,19 @@ PROJECT_NAME := ntx20
 export PROJECT_VERSION := $(shell git rev-parse --abbrev-ref HEAD)-$(PROJECT_GIT_HASH)
 
 
-all: apps.nanotrix.cloud/install/$(PROJECT_NAME).tgz status
+all: apps.ntx20.cloud/install/$(PROJECT_NAME).tgz status
 
 push: all
-	mc cp apps.nanotrix.cloud/install/$(PROJECT_NAME).tgz wasabi/apps.nanotrix.cloud/install/$(PROJECT_NAME).tgz
+	mc cp apps.ntx20.cloud/install/$(PROJECT_NAME).tgz heinrich/apps.ntx20.cloud/install/$(PROJECT_NAME).tgz
 
 clean:
 	rm -r install
 
-apps.nanotrix.cloud/install/$(PROJECT_NAME).tgz: apps.nanotrix.cloud/install/$(PROJECT_NAME)-$(PROJECT_VERSION).tgz
-	cp apps.nanotrix.cloud/install/$(PROJECT_NAME)-$(PROJECT_VERSION).tgz apps.nanotrix.cloud/install/$(PROJECT_NAME).tgz
+apps.ntx20.cloud/install/$(PROJECT_NAME).tgz: apps.ntx20.cloud/install/$(PROJECT_NAME)-$(PROJECT_VERSION).tgz
+	cp apps.ntx20.cloud/install/$(PROJECT_NAME)-$(PROJECT_VERSION).tgz apps.ntx20.cloud/install/$(PROJECT_NAME).tgz
 
-apps.nanotrix.cloud/install/$(PROJECT_NAME)-$(PROJECT_VERSION).tgz: install/$(PROJECT_NAME)-$(PROJECT_VERSION)
-	cd install/$(PROJECT_NAME)-$(PROJECT_VERSION) && tar -zcvf ../../apps.nanotrix.cloud/install/$(PROJECT_NAME)-$(PROJECT_VERSION).tgz .
+apps.ntx20.cloud/install/$(PROJECT_NAME)-$(PROJECT_VERSION).tgz: install/$(PROJECT_NAME)-$(PROJECT_VERSION)
+	cd install/$(PROJECT_NAME)-$(PROJECT_VERSION) && tar -zcvf ../../apps.ntx20.cloud/install/$(PROJECT_NAME)-$(PROJECT_VERSION).tgz .
 
 install/$(PROJECT_NAME)-$(PROJECT_VERSION):
 	cd ../$(PROJECT_NAME) && dotnet publish -c Release -o ../build/install/$(PROJECT_NAME)-$(PROJECT_VERSION) -f net6.0
