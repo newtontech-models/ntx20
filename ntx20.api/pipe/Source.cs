@@ -182,6 +182,8 @@ namespace ntx20.api.pipe
                     line = await _stream.ReadLineAsync();
                     if (line == null)
                         break;
+                    if (line.Trim().Length == 0)
+                        continue;
                 }
                 catch (TaskCanceledException) { break; }
                 T ret = default(T);
