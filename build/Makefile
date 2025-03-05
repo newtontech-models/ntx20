@@ -21,7 +21,7 @@ apps.ntx20.cloud/install/$(PROJECT_NAME)-$(PROJECT_VERSION).tgz: install/$(PROJE
 	cd install/$(PROJECT_NAME)-$(PROJECT_VERSION) && tar -zcvf ../../apps.ntx20.cloud/install/$(PROJECT_NAME)-$(PROJECT_VERSION).tgz .
 
 install/$(PROJECT_NAME)-$(PROJECT_VERSION):
-	cd ../$(PROJECT_NAME) && dotnet publish -c Release -o ../build/install/$(PROJECT_NAME)-$(PROJECT_VERSION) -f net6.0
+	cd ../$(PROJECT_NAME) && dotnet publish -c Release -o ../build/install/$(PROJECT_NAME)-$(PROJECT_VERSION) -f net9.0
 	
 status:
 	git status -s

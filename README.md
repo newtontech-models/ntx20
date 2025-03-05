@@ -3,7 +3,7 @@
 ## Installation
 
 ### Prerequisities
- 1. Get [ASP.NET Core Runtime 6.0.x and .NET Runtime 6.0.x](https://dotnet.microsoft.com/download/dotnet/6.0)
+ 1. Get [ASP.NET Runtime 9.0.x](https://dotnet.microsoft.com/download/dotnet/9.0)
  2. On Windows install [VS redistributables](https://aka.ms/vs/16/release/vc_redist.x64.exe)
 
 ### Setup and update
