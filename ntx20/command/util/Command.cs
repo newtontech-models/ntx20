@@ -12,6 +12,7 @@ namespace ntx20.command.util
             command.Description = "stream utils";
             command.Command("print", (c) => print.Command.Configure(c,options));
             command.Command("conv", (c) => conv.Command.Configure(c, options));
+            command.Command("trsx", (c) => trsx.Command.Configure(c, options));
 
             command.OnExecute(() =>
             {
