@@ -4,7 +4,7 @@
 
 ### Prerequisities
  1. Get [ASP.NET Runtime 9.0.x](https://dotnet.microsoft.com/download/dotnet/9.0)
- 2. On Windows install [VS redistributables](https://aka.ms/vs/16/release/vc_redist.x64.exe)
+ 2. On Windows install [VS redistributables](https://aka.ms/vs/17/release/vc_redist.x64.exe)
 
 ### Setup and update
  2. Download [windows](./scripts/ntx20-get.bat) or [linux](./scripts/ntx20-get) ``ntx20-get`` script to any read/write directory with enough free space
