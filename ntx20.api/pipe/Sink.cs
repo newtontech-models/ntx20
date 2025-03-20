@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Formats.Tar;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -24,8 +25,11 @@ namespace ntx20.api.pipe
         }
 
 
-        
 
+        public static IAsyncSink<TarEntry> AsTarSink(this Stream stream)
+        {
+            return new TarSinkWriter(stream);
+        }
 
         public static IAsyncSink<T> AsBinaryProtoSink<T>(this Stream stream) where T : Google.Protobuf.IMessage, new()
         {

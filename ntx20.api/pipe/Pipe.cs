@@ -17,6 +17,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
+using static Grpc.Core.Metadata;
 
 namespace ntx20.api.pipe
 {
@@ -327,6 +328,46 @@ namespace ntx20.api.pipe
             }
         }
 
+        public static async IAsyncEnumerable<Y> ViaAsyncMapperParallel<X, Y>(this IAsyncEnumerable<X> source, 
+            Func<X, Task<Y>> mapper,int parallelism, util.RetryWithBackoff retry, [EnumeratorCancellation]  CancellationToken breaker = default)
+        {
+
+            using BlockingCollection<Y> output = new BlockingCollection<Y>(2 * (int)parallelism);
+            var feed = Parallel.ForEachAsync(source,
+                new ParallelOptions { MaxDegreeOfParallelism = parallelism, CancellationToken = breaker },
+
+                async (x, breaker) =>
+                {
+                    while (true)
+                    {
+                        var _retry = retry.Clone();
+                        try
+                        {
+                            output.Add(await mapper(x));
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning($"Failed: {ex.Message}");
+                            if (breaker.IsCancellationRequested)
+                                throw;
+                            if (await _retry.Next(breaker))
+                                throw;
+                            _logger.LogWarning($"Retry: #{_retry.Retry}/{_retry.MaxRetries}");
+                        }
+                    }
+                }
+            ).ContinueWith(x => output.CompleteAdding());
+            
+            foreach (var x in output.GetConsumingEnumerable())
+            {
+                yield return x;
+            }
+
+            await feed;
+            
+        }
+
 
         public static async IAsyncEnumerable<byte[]> TensorToBinaryChunk(this IAsyncEnumerable<proto.Payload> source)
         {
@@ -431,7 +472,7 @@ namespace ntx20.api.pipe
             {
                 if (!item.IsBinary)
                 {
-                    _logger.LogInformation($"{item.Key}={item.Value}");
+                    _logger.LogTrace($"{item.Key}={item.Value}");
                 }
             }
             await call.ResponseStream.MoveNext(cancellationToken);

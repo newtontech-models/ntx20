@@ -51,7 +51,13 @@ namespace ntx20.api.io
 
         public override long Length => Stream().Length;
 
-        public override long Position { get => position; set => throw new NotImplementedException(); }
+        public override long Position
+        {
+            get => position; set
+            {
+                Seek(value, SeekOrigin.Begin);
+            }
+        }
 
         public override void Flush()
         {
@@ -88,7 +94,7 @@ namespace ntx20.api.io
             
             if(Stream() is ICompleteStream)
             {
-                (Stream() as ICompleteStream).Complete();
+                    (Stream() as ICompleteStream).Complete();
             }
         }
 

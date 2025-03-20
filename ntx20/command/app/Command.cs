@@ -1,11 +1,11 @@
-﻿using ICSharpCode.SharpZipLib.Tar;
-using Microsoft.Extensions.CommandLineUtils;
+﻿using Microsoft.Extensions.CommandLineUtils;
 using Microsoft.Extensions.Logging;
 using ntx20.api;
 using ntx20.api.io;
 using ntx20.api.utils;
 using System;
 using System.Diagnostics;
+using System.Formats.Tar;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -43,15 +43,6 @@ namespace ntx20.command.app
         private static readonly Google.Protobuf.JsonParser jsonParser = new Google.Protobuf.JsonParser(Google.Protobuf.JsonParser.Settings.Default.WithIgnoreUnknownFields(true));
         private async Task<api.proto.App> GetAppDef(string version, string app_home_remote, string app_home_local)
         {
-            /*
-            var localfile = $"{app_home_local}/apps/ntx20/versions/{version}.json";
-            var remotefile = $"{app_home_remote}/apps/ntx20/versions/{version}.json";
-            Directory.CreateDirectory(Path.GetDirectoryName(localfile));
-            if (!File.Exists(localfile))
-            {
-                await api.io.LazyStream.Input(remotefile).CopyToAsync(LazyStream.Output(localfile,"application/json"));
-            }
-            */
             var remotefile = $"{app_home_remote}/apps/ntx20/versions/{version}.json";
             var t = await api.io.LazyStream.Input(remotefile).GetTextAsync();
             var app = jsonParser.Parse<api.proto.App>((t));
@@ -256,65 +247,27 @@ namespace ntx20.command.app
             await stream.CopyToAsync(dest);
             dest.Close();
         }
-#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
         async Task Untar(string source, string path)
-#pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
         {
             using var inputStream = api.io.LazyStream.Input(source);
-#pragma warning disable CS0618 // Type or member is obsolete
-            TarInputStream tarIn = new(inputStream);
-#pragma warning restore CS0618 // Type or member is obsolete
-            TarEntry tarEntry;
-            while ((tarEntry = tarIn.GetNextEntry()) != null)
+            using (var tarReader = new TarReader(inputStream))
             {
 
-                var id = Path.Combine(path, tarEntry.Name);
-                Directory.CreateDirectory(Path.GetDirectoryName(id));
-                _logger.LogInformation("Unpacking: {0}", id);
-                using var dest = new api.io.TempFileStream(id);
-                tarIn.CopyEntryContents(dest);
-                dest.Close();
-            }
-            tarIn.Close();
-        }
-
-        private int Serve(string app_home_local, string version, string[] args)
-        {
-            var app_path = Path.Combine(app_home_local, "apps", "ntx20", version, "ntx20.app.dll");
-            if (Environment.GetEnvironmentVariable("NTX20_APP_PATH") != null)
-            {
-                app_path = Environment.GetEnvironmentVariable("NTX20_APP_PATH");
-            }
-
-            var p = new Process();
-            p.StartInfo.CreateNoWindow = true;
-            p.StartInfo.FileName = "dotnet";
-            p.StartInfo.UseShellExecute = false;
-            p.StartInfo.Arguments = $"{app_path} {string.Join(" ", args)}";
-            p.StartInfo.RedirectStandardOutput = true;
-            p.StartInfo.RedirectStandardInput = true;
-            p.StartInfo.RedirectStandardError = true;
-            p.Start();
-            
-            var t0 = p.StandardOutput.ReadLineAsync();
-            var t1 = Task.Run(() =>
-            {
-                if (!p.HasExited)
+                TarEntry entry;
+                while ((entry = tarReader.GetNextEntry()) != null)
                 {
-                    p.WaitForExit();
+                    if (entry.EntryType is not TarEntryType.RegularFile)
+                        continue;
+
+                    var id = Path.Combine(path, entry.Name);
+                    Directory.CreateDirectory(Path.GetDirectoryName(id));
+                    _logger.LogInformation("Unpacking: {0}", id);
+                    using var dest = new api.io.TempFileStream(id);
+                    await entry.DataStream.CopyToAsync(dest);
+                    dest.Close();
                 }
-            });
-            if(Task.WaitAny(t0, t1) == 0)
-            {
-                Console.WriteLine(t0.Result);
-                p.StandardOutput.Close();
-                p.StandardInput.Close();
-                p.StandardError.Close();
-                Process.GetCurrentProcess().Kill();
-                return 0;
+                
             }
-            Console.Error.WriteLine(p.StandardError.ReadToEnd());
-            return 1;
         }
 
         private int Run(string app_home_local, string version, string[] args)

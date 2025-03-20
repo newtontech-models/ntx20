@@ -147,7 +147,7 @@ namespace ntx20.api.utils
 
                 if (!speakers.ContainsKey(block.Item3))
                 {
-                    speakers[block.Item3] = speakers.Count().ToString();
+                    speakers[block.Item3] = speakers.Count.ToString();
                     speaker.Add(
                         new XElement("s",
                             new XAttribute("id", speakers[block.Item3]),

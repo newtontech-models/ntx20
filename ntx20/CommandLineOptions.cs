@@ -4,6 +4,7 @@ using ntx20.api.proto;
 using ntx20.command;
 using Serilog.Events;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -23,6 +24,14 @@ namespace ntx20
         public static string GetValueOrDefault(this CommandOption option)
         {
             return option.HasValue() ? option.Value() : option.ValueName;
+        }
+
+        public static List<string> GetValuesOrDefault(this CommandOption option)
+        {
+            var def = option.GetValueOrDefault();
+            var r = def == "" || def == "none" ? new List<string>() : new List<string> { def };
+
+            return option.Values.Count==0 ? r : option.Values;
         }
 
         public static void MustSetValue(this CommandOption option,CommandLineApplication command)
