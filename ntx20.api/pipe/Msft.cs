@@ -7,6 +7,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
@@ -64,7 +66,7 @@ namespace ntx20.api.pipe
             }
         }
 
-        public static async IAsyncEnumerable<proto.Payload> ViaMfstRt(this IAsyncEnumerable<proto.Payload> source, SpeechConfig speechConfig)
+        public static async IAsyncEnumerable<proto.Payload> ViaMSFTRt(this IAsyncEnumerable<proto.Payload> source, SpeechConfig speechConfig)
         {
             using var stream = AudioInputStream.CreatePushStream();
             using var audioConfig = AudioConfig.FromStreamInput(stream);
@@ -95,10 +97,37 @@ namespace ntx20.api.pipe
             speechRecognizer.SessionStopped += (object sender, SessionEventArgs e) => { 
                 oBuffer.Complete(); 
             };
-            var lastTs = 0.0;
+            var lastTs = -1.0;
+            var lastWordTs = -1.0;
             await foreach (var v in oBuffer.AsSource())
             {
-                //var json = v.Properties.GetProperty(PropertyId.SpeechServiceResponse_JsonResult);
+                var r = new proto.Payload { Track = "v2t" };
+                try
+                {
+                    var json = v.Properties.GetProperty(PropertyId.SpeechServiceResponse_JsonResult);
+                    JsonNode document = JsonNode.Parse(json);
+                    foreach (var w in document["NBest"]!.AsArray()[0]["Words"].AsArray())
+                    {
+                        var start = w["Offset"]!.GetValue<long>() / 10000.0;
+                        var stop = (w["Offset"]!.GetValue<long>() + w["Duration"]!.GetValue<long>()) / 10000.0;
+                        if (lastWordTs != start)
+                        {
+                            r.Chunk.Add(new Item { Key = "ts", D = start });
+                        }
+                        r.Chunk.Add(new Item { Key = "txt", S = w["Word"].GetValue<string>() });
+                        r.Chunk.Add(new Item { Key = "ts", D = stop });
+                        lastWordTs = stop;
+                    }
+
+                    
+                }catch
+                {
+
+                }
+                yield return r;
+
+
+
                 var ret = new proto.Payload { Track = "tpc" };
                 var offsetMs = v.OffsetInTicks / 10000.0;
                 

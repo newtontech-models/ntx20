@@ -141,7 +141,7 @@ namespace ntx20.command.run.mstran
             });
 
 
-            pipe = pipe.ViaMfstRt(configuration);
+            pipe = pipe.ViaMSFTRt(configuration);
 
             await (OFormat switch
             {
