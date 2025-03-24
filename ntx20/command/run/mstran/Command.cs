@@ -40,7 +40,7 @@ namespace ntx20.command.run.mstran
                 );
 
             var oFormat = command.Option($"-w|--writer <json>",
-                "write output as json|proto|text",
+                "write output as json|proto|text:v2t,text:tpc",
                 CommandOptionType.SingleValue
                 );
             var flush = command.Option("-f|--flush",
@@ -146,6 +146,10 @@ namespace ntx20.command.run.mstran
             await (OFormat switch
             {
                 "json" => pipe.RunWithSink(output.AsJsonProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker),
+                "proto" => pipe.RunWithSink(output.AsBinaryProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker),
+                "simple" => pipe.ToSimpleText().RunWithSink(output.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
+                "text:v2t" => pipe.ToText("v2t").RunWithSink(output.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
+                "text:tpc" => pipe.ToText("tpc").RunWithSink(output.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
                 _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
             });
             output.Complete();

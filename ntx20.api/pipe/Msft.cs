@@ -114,6 +114,7 @@ namespace ntx20.api.pipe
                         {
                             r.Chunk.Add(new Item { Key = "ts", D = start });
                         }
+                        r.Chunk.Add(new Item { Key = "txt", S = " ",Tags = {"+"} });
                         r.Chunk.Add(new Item { Key = "txt", S = w["Word"].GetValue<string>() });
                         r.Chunk.Add(new Item { Key = "ts", D = stop });
                         lastWordTs = stop;
@@ -134,7 +135,7 @@ namespace ntx20.api.pipe
                 if (lastTs != offsetMs) {
                     ret.Chunk.Add(new Item { Key = "ts", D = offsetMs });
                 }
-                ret.Chunk.Add(new Item { Key = "txt", S = v.Text });
+                ret.Chunk.Add(new Item { Key = "txt", S = $" {v.Text}" });
                 lastTs = offsetMs + v.Duration.TotalMilliseconds;
                 ret.Chunk.Add(new Item { Key = "ts", D = lastTs });
                 yield return ret;
