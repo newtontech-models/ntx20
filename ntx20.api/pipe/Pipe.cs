@@ -38,6 +38,13 @@ namespace ntx20.api.pipe
         }
 
 
+        public static async IAsyncEnumerable<T> AsSource<T>(this BufferBlock<T> buffer, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            while (await buffer.OutputAvailableAsync())
+            {
+                yield return await buffer.ReceiveAsync();
+            }
+        }
 
         public static async Task RunWithSink<T>(this IAsyncEnumerable<T> source, IAsyncSink<T> sink, bool autoFlush = true, bool autoComplete = true, CancellationToken cancellationToken = default)
         {
