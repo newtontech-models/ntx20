@@ -10,19 +10,21 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
+using System.Xml.Linq;
 using static Grpc.Core.Metadata;
+
 
 namespace ntx20.api.pipe
 {
     public static class Pipe
     {
+        internal static Regex firstalpha = new Regex(@"^(\s*)(\S)(.*)$");
 
         private static readonly ILogger _logger = Logging.LoggerFactory.CreateLogger("ntx20.api.pipe");
 #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
@@ -36,7 +38,6 @@ namespace ntx20.api.pipe
                 yield return v;
             }
         }
-
 
         public static async IAsyncEnumerable<T> AsSource<T>(this BufferBlock<T> buffer, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
@@ -159,7 +160,6 @@ namespace ntx20.api.pipe
 
         public static async IAsyncEnumerable<string> ToText(this IAsyncEnumerable<proto.Payload> source, string track)
         {
-            Regex firstalpha = new Regex(@"^(\s*)(\S)(.*)$");
             bool fnoise = true;
             await foreach (var x in source)
             {
@@ -515,6 +515,357 @@ namespace ntx20.api.pipe
             }
 
         }
+
+        public static async IAsyncEnumerable<proto.Payload> MergeByTsWith(this IAsyncEnumerable<proto.Payload> first, IAsyncEnumerable<proto.Payload> second)
+        {
+            var ctime = 0.0;
+            bool fc = true;
+            bool sc = true;
+            var f = first.GetAsyncEnumerator();
+            var s = second.GetAsyncEnumerator();
+            while (fc || sc)
+            {
+                while(fc =await f.MoveNextAsync()) {
+                    yield return f.Current;
+                    var l = f.Current.Chunk.LastOrDefault(x => x.Key == "ts" && x.D > ctime);
+                    if (l!= null)
+                    {
+                        ctime = l.D;
+                        break;
+                    }
+                }
+                while(sc = await s.MoveNextAsync()) {
+                    yield return s.Current;
+                    var l = s.Current.Chunk.LastOrDefault(x => x.Key == "ts" && x.D > ctime);
+                    if (l != null)
+                    {
+                        ctime = l.D;
+                        break;
+                    }
+                }
+            }
+        }
+        internal static IEnumerable<Tuple<double, double, string>> ToTrsxWords(this IEnumerable<api.proto.Item> items)
+        {
+            var bStart = -1.0;
+            var bEnd = -1.0;
+            string cWord = null;
+            foreach (var item in items)
+            {
+                if (item.Key == "ts")
+                {
+                    if (cWord == null)
+                    {
+                        bStart = item.D;
+                        continue;
+                    }
+                    if (cWord.Trim().Length == 0)
+                    {
+                        bStart = item.D;
+                        continue;
+                    }
+                    bEnd = item.D;
+                    yield return Tuple.Create(bStart, bEnd, cWord);
+                    cWord = null;
+                    bStart = item.D;
+
+                    continue;
+                }
+                if (item.Key == "txt")
+                {
+                    var s = item.S;
+                    if (item.Tags.Contains("noise"))
+                    {
+                        s = "";
+                    }
+
+                    if (cWord == null)
+                    {
+                        cWord = s;
+                    }
+                    else
+                    {
+                        cWord += s;
+                    }
+                }
+            }
+
+        }
+
+        internal static async IAsyncEnumerable<KeyValuePair<string,List<proto.Item>>> ToTrsxBlocks(this IAsyncEnumerable<proto.Item> source)
+        {
+            string cSpeaker = null;
+            double lastTs = 0.0;
+            var cBlock = new List<proto.Item>();
+            await foreach (var x in source)
+            {
+                if (x.Tags.Contains("la"))
+                {
+                    continue;
+                }
+                if (x.Key == "spk")
+                {
+                    if(cSpeaker == null)
+                    {
+                        cSpeaker = x.S;
+                    }
+                    else
+                    {
+                        yield return new KeyValuePair<string, List<Item>>(cSpeaker,cBlock) ;
+                        cBlock = new List<Item>() { new Item { Key = "ts", D = lastTs }, x };
+                        cSpeaker = x.S;
+                    }
+                    continue;
+                }
+                if(x.Key == "ts")
+                {
+                    lastTs = x.D;
+                }
+                cBlock.Add(x);
+            }
+            if (cSpeaker == null)
+            {
+                cSpeaker = "nobody";
+            }
+            if (cBlock.Count > 0)
+            {
+                yield return new KeyValuePair<string, List<Item>>(cSpeaker, cBlock);
+            }
+
+        }
+
+        public static async IAsyncEnumerable<string> ToTrsx(this IAsyncEnumerable<proto.Payload> source, string mediaUri)
+        {
+            var root = new XElement("transcription",
+                     new XAttribute("mediauri", mediaUri),
+                     new XAttribute("version", "3.0")
+                     );
+            var doc = new XDocument(root) { Declaration = new XDeclaration("1.0", "UTF-8", "yes") };
+            
+
+            var speakers = new Dictionary<string, string>();
+            var channel = new XElement("se", new XAttribute("name", "transcription"));
+            root.Add(new XElement("ch", new XAttribute("name", mediaUri), channel));
+            var speaker = new XElement("sp");
+            root.Add(speaker);
+
+            
+            await foreach (var x in source.Where(x=> x.Track == "tran").SelectMany(x=>x.Chunk.ToAsyncEnumerable()).Where(x=> !x.Tags.Contains("la")).ToTrsxBlocks())
+            {
+                if (!speakers.ContainsKey(x.Key))
+                {
+                    speakers[x.Key] = speakers.Count.ToString();
+                    speaker.Add(
+                        new XElement("s",
+                            new XAttribute("id", speakers[x.Key]),
+                            new XAttribute("surname", x.Key),
+                            new XAttribute("firstname", ""),
+                            new XAttribute("lang", ""),
+                            new XAttribute("sex", "")
+                            )
+                        );
+                }
+                var startTime = x.Value.First(x => x.Key == "ts").D;
+                var stopTime = x.Value.Last(x => x.Key == "ts").D;
+                List<XElement> words = new List<XElement>();
+                
+                foreach ( var word in x.Value.ToTrsxWords())
+                {
+                    words.Add(
+                 new XElement("p",
+                 new XAttribute("b", TimeSpan.FromMilliseconds(word.Item1)),
+                 new XAttribute("e", TimeSpan.FromMilliseconds(word.Item2)),
+                 word.Item3));
+                }
+
+                channel.Add(new XElement("pa",
+                                               new XAttribute("a", ""),
+                                               new XAttribute("b", TimeSpan.FromMilliseconds(startTime)),
+                                               new XAttribute("e", TimeSpan.FromMilliseconds(stopTime)),
+                                               new XAttribute("s", speakers[x.Key]),
+                                               words
+
+                                           ));
+
+
+            }
+            yield return doc.Declaration.ToString() + "\n";
+            yield return root.ToString();
+        }
+        internal static async IAsyncEnumerable<proto.Payload> withPostprocessing(this IAsyncEnumerable<proto.Payload> source)
+        {
+            await foreach (var x in source)
+            {
+
+                if (x.Track != "tran")
+                {
+                    yield return x;
+                    continue;
+                }
+
+
+                foreach (var item in x.Chunk)
+                {
+                    if (item.Key == "txt")
+                    {
+                        var s = item.S;
+                        if (item.Tags.Contains("sos"))
+                        {
+                            s = firstalpha.Replace(s, m =>
+                            m.Groups[1].Value + m.Groups[2].Value.ToUpperInvariant() + m.Groups[3].Value
+                            );
+                            item.S = s;
+                        }
+                        
+                    }
+                }
+                yield return x;
+            }
+        }
+        internal static IEnumerable<Tuple<double, bool>> ToTimetampsWithPunct(this IEnumerable<api.proto.Item> items)
+        {
+            Regex hasPunctRegex = new Regex(@"[\.,:!?]\s*$");
+            bool hasPunct = false;
+            foreach (var item in items.Where(x=>!x.Tags.Contains("la")))
+            {
+                if (item.Key == "txt")
+                {
+                    if (item.S.Trim().Length == 0)
+                        continue;
+                    hasPunct = hasPunctRegex.IsMatch(item.S);
+                    continue;
+                }
+                if(item.Key == "ts")
+                {
+                    yield return Tuple.Create(item.D, hasPunct);
+                }
+            }
+        }
+        public static async IAsyncEnumerable<proto.Payload> CreateTranTrack(this IAsyncEnumerable<proto.Payload> source, bool pipe)
+        {
+            await foreach (var item in source.createTranTrack(pipe).withPostprocessing())
+            {
+                yield return item;
+            }
+        }
+        internal static async IAsyncEnumerable<proto.Payload> createTranTrack(this IAsyncEnumerable<proto.Payload> source, bool pipe)
+        {
+
+            Regex lastPunct = new Regex(@"(,|([^.!?]))\s*$");
+            
+            string cSpeaker = null;
+            double tpcHead = 0.0;
+            double spkHead = 0.0;
+
+            Queue <proto.Item> spk = new();
+            Queue<proto.Item> tpc = new();
+            bool needSos = true;
+            await foreach(var x in source)
+            {
+                
+                if(pipe && x.Track!="tran")
+                    yield return x;
+                if (x.Track == "spk")
+                {
+                    foreach(var x2 in x.Chunk)
+                    {
+                        if (x2.Tags.Contains("la"))
+                            continue;
+                        switch (x2.Key) {
+                            case "ts":
+                                spkHead = x2.D;
+                                break;
+                            case "txt":
+                                if(cSpeaker != x2.S)
+                                {
+                                    spk.Enqueue(new Item { Key= "spk",S=x2.S, D= spkHead});
+                                    cSpeaker = x2.S;
+                                }
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+
+                }
+                if(x.Track == "tpc")
+                {
+                    foreach(var x2 in x.Chunk)
+                    {
+                        if (x2.Key == "ts" && !x2.Tags.Contains("la"))
+                        {
+                            tpcHead = x2.D;
+                        }
+                        tpc.Enqueue(x2);
+                    }
+                }
+                
+
+                while(spk.Count > 0 && spk.Peek().D < tpcHead)
+                {
+                    var cspk = spk.Dequeue();
+                    var changePoints = tpc.ToTimetampsWithPunct().OrderBy(x => Math.Abs(cspk.D - x.Item1)).ToArray();
+                    var chp = changePoints[0];
+                    /*
+                    if (!chp.Item2 && changePoints.Count() >0)
+                    {
+                        var second = changePoints[1];
+                        if(Math.Abs(cspk.D - second.Item1) < 250 && second.Item2)
+                        {
+                            chp = second;
+                        }
+                        
+                    }
+                    */
+                    var changePoint = chp.Item1;
+                    var ret = new proto.Payload() { Track = "tran" };
+                    proto.Item lastOne = null;
+                    while (true)
+                    {
+                        var ctpc = tpc.Dequeue();
+                        ret.Chunk.Add(ctpc);
+                        if(ctpc.Key == "txt" && !ctpc.Tags.Contains("la") && !ctpc.Tags.Contains("noise"))
+                        {
+                            if (ctpc.S.Trim().Length > 0)
+                            {
+                                if (needSos)
+                                {
+                                    if (!ctpc.Tags.Contains("sos"))
+                                        ctpc.Tags.Add("sos");
+                                    needSos = false;
+                                }
+                                lastOne = ctpc;
+                            }
+
+                        }
+                        if (ctpc.Key == "ts" && !ctpc.Tags.Contains("la") && ctpc.D == changePoint){
+
+                            if (lastOne != null) {
+                                lastOne.S = lastPunct.Replace(lastOne.S, m =>
+                                  m.Groups[2].Value + "."
+                                  );
+                            }
+                            
+
+                            break;
+                        }
+                    }
+                    ret.Chunk.Add(new Item { Key = "spk", S = cspk.S });
+                    
+                    needSos = true;
+
+                    yield return ret;
+                }
+                //TODO add buffer dequeue when no speaker found
+            }
+            if (tpc.Count > 0)
+            {
+                var ret = new proto.Payload() { Track = "tran" };
+                ret.Chunk.AddRange(tpc);
+                yield return ret;
+            }
+        }
+
 
         public static async IAsyncEnumerable<proto.Payload> ViaGRPCCall(this IAsyncEnumerable<proto.Payload> source, Grpc.Core.AsyncDuplexStreamingCall<proto.Payload, proto.Payload> call)
         {

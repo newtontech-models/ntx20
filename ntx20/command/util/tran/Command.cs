@@ -2,15 +2,15 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ntx20.command.util.trsx
+namespace ntx20.command.util.tran
 {
     
     class Command :ICommand
     {
         internal static void Configure(CommandLineApplication command, CommandLineOptions options)
         {
-            command.Description = "trsx conversion tools";
-            command.Command("fromjson", (c) => fromjson.Command.Configure(c,options));
+            command.Description = "tran conversion tools";
+            command.Command("create", (c) => create.Command.Configure(c,options));
 
             command.OnExecute(() =>
             {
