@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using ntx20.api.proto.legacy.v2t.engine;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -9,6 +10,9 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml;
+using System.Xml.Linq;
+using System.Xml.XPath;
 
 
 namespace ntx20.api.pipe
@@ -257,5 +261,71 @@ namespace ntx20.api.pipe
                 }
             }
         }
+
+        internal static Dictionary<string, string> GetSpeakerMap(XElement speakers)
+        {
+            var ret = new Dictionary<string, string>();
+            foreach (var spk in speakers.XPathSelectElements("//s"))
+            {
+                var name = spk.Attribute("firstname").Value + " " + spk.Attribute("surname").Value;
+                ret[spk.Attribute("id").Value] = name.Trim();
+            }
+            return ret;
+        }
+        public static async IAsyncEnumerable<api.proto.Payload> AsTrsxTranSource(this Stream stream, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            using (var reader = new StreamReader(stream))
+            {
+                XDocument doc = XDocument.Load(reader, LoadOptions.PreserveWhitespace);
+                var paragraphs = doc.XPathSelectElements("//pa");
+                var speakers = GetSpeakerMap(doc.XPathSelectElement("//sp"));
+                var lastSpkId = "";
+                foreach (var par in paragraphs)
+                {
+                    var bstart = XmlConvert.ToTimeSpan(par.Attribute("b").Value).TotalMilliseconds;
+                    var bend = XmlConvert.ToTimeSpan(par.Attribute("e").Value).TotalMilliseconds;
+                    var spkId = par.Attribute("s")?.Value == null ? "nobody": speakers[par.Attribute("s").Value];
+                    var ret = new proto.Payload() {Track="tran", Chunk = { new proto.Item {Key="ts", D= bstart }, new proto.Item { Key="spk", S= spkId} } };
+                    lastSpkId = spkId;
+                    var lastTs = bstart;
+                    foreach (var p in par.XPathSelectElements("./p"))
+                    {
+                        var hasCaption = p.Attribute("caption") != null;
+                        if (hasCaption)
+                            continue;
+
+                        var b = p.Attribute("b")?.Value;
+                        var e = p.Attribute("e")?.Value;
+                        var w = p.Value;
+                        if(b!= null)
+                        {
+                            var bp = XmlConvert.ToTimeSpan(b).TotalMilliseconds;
+                            if(bp > lastTs)
+                            {
+                                ret.Chunk.Add(new proto.Item { Key = "ts", D = bp });
+                                lastTs = bp;
+                            }
+                        }
+                        ret.Chunk.Add(new proto.Item { Key = "txt", S = w });
+                        if (e != null)
+                        {
+                            var ep = XmlConvert.ToTimeSpan(e).TotalMilliseconds;
+                            if (ep > lastTs)
+                            {
+                                ret.Chunk.Add(new proto.Item { Key = "ts", D = ep });
+                                lastTs = ep;
+                            }
+                        }
+                    }
+                    if (bend > lastTs)
+                    {
+                        ret.Chunk.Add(new proto.Item { Key = "ts", D = lastTs });
+                    }
+                    yield return ret;
+                }
+                
+            }
+        }
+
     }
 }

@@ -22,7 +22,7 @@ using static Grpc.Core.Metadata;
 
 namespace ntx20.api.pipe
 {
-    public static class Pipe
+    public static partial class Pipe
     {
         internal static Regex firstalpha = new Regex(@"^(\s*)(\S)(.*)$");
 
@@ -545,7 +545,7 @@ namespace ntx20.api.pipe
                 }
             }
         }
-        internal static IEnumerable<Tuple<double, double, string>> ToTrsxWords(this IEnumerable<api.proto.Item> items)
+        private static IEnumerable<Tuple<double, double, string>> ToWordBlocks(this IEnumerable<api.proto.Item> items)
         {
             var bStart = -1.0;
             var bEnd = -1.0;
@@ -592,7 +592,7 @@ namespace ntx20.api.pipe
 
         }
 
-        internal static async IAsyncEnumerable<KeyValuePair<string,List<proto.Item>>> ToTrsxBlocks(this IAsyncEnumerable<proto.Item> source)
+        private static async IAsyncEnumerable<KeyValuePair<string,List<proto.Item>>> ToSpkBlocks(this IAsyncEnumerable<proto.Item> source)
         {
             string cSpeaker = null;
             double lastTs = 0.0;
@@ -650,7 +650,7 @@ namespace ntx20.api.pipe
             root.Add(speaker);
 
             
-            await foreach (var x in source.Where(x=> x.Track == "tran").SelectMany(x=>x.Chunk.ToAsyncEnumerable()).Where(x=> !x.Tags.Contains("la")).ToTrsxBlocks())
+            await foreach (var x in source.Where(x=> x.Track == "tran").SelectMany(x=>x.Chunk.ToAsyncEnumerable()).Where(x=> !x.Tags.Contains("la")).ToSpkBlocks())
             {
                 if (!speakers.ContainsKey(x.Key))
                 {
@@ -669,7 +669,7 @@ namespace ntx20.api.pipe
                 var stopTime = x.Value.Last(x => x.Key == "ts").D;
                 List<XElement> words = new List<XElement>();
                 
-                foreach ( var word in x.Value.ToTrsxWords())
+                foreach ( var word in x.Value.ToWordBlocks())
                 {
                     words.Add(
                  new XElement("p",
@@ -801,7 +801,7 @@ namespace ntx20.api.pipe
                 }
                 
 
-                while(spk.Count > 0 && spk.Peek().D < tpcHead)
+                while(spk.Count > 0 && spk.Peek().D < tpcHead && tpc.Count > 0)
                 {
                     var cspk = spk.Dequeue();
                     var changePoints = tpc.ToTimetampsWithPunct().OrderBy(x => Math.Abs(cspk.D - x.Item1)).ToArray();

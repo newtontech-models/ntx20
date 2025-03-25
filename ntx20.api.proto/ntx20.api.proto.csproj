@@ -7,6 +7,7 @@
   <ItemGroup>
     <None Remove="ntx\core20\engine.proto" />
     <None Remove="ntx\core20\manifest.proto" />
+    <None Remove="ntx\core20\misc.proto" />
   </ItemGroup>
 
 
@@ -23,6 +24,7 @@
   <ItemGroup>
     <Protobuf Include="ntx\core20\engine.proto" GrpcServices="Client" />
     <Protobuf Include="ntx\core20\manifest.proto" />
+    <Protobuf Include="ntx\core20\misc.proto" />
     <Protobuf Include="ntx\v2t\engine\engine.proto" />
   </ItemGroup>
 

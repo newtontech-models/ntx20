@@ -14,7 +14,6 @@ namespace ntx20.command
             {
                 command.Command("app", (c) => app.Command.Configure(c, options), false);
             }
-            command.Command("batch", (c) => batch.Command.Configure(c, options), options.TheService != null);
             command.Command("run", (c) => run.Command.Configure(c, options), options.TheService != null);
             command.Command("util", (c) => util.Command.Configure(c, options));
             

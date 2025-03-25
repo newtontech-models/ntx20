@@ -64,14 +64,14 @@ namespace ntx.api.utils
     }
     public class TextItem
     {
-        public TextItem(string text,int index=-1)
-        {
-            this.Text = text;
-            this.Index = index;
-        }
-        public string Text { get; private set; }
-        public int Index { get; private set; }
+        public string Text { get; set; }
+        public int Index { get; set; }
         public int Block { get; set; }
+        public string Speaker { get; set; }
+        public string Value { get; set; }
+        public double? Start { get; set; }
+        public double? End { get; set; }
+        public bool Eval { get; set; }
     }
     public class AlignedItem
     {

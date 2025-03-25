@@ -6,6 +6,26 @@ using System.Threading.Tasks;
 
 namespace ntx20.api.util
 {
+
+    public class ProcessingMode
+    {
+        public string Mode { get; set; }
+        public int Parallelism { get; set; }
+        public static ProcessingMode Parse(string cmd)
+        {
+            if (cmd == "one")
+            {
+                return new ProcessingMode { Mode=cmd, Parallelism = 1 };
+            }
+            var parts = cmd.Trim().Split(':');
+            if (parts.Length != 2)
+            {
+                throw new ArgumentException($"Invalid processing mode {cmd}");
+            }
+            return new ProcessingMode { Mode = parts[0], Parallelism = (int)uint.Parse(parts[1]) };
+        }
+    }
+
     public class RetryWithBackoff
     {
         int count;

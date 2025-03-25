@@ -11,6 +11,7 @@ namespace ntx20.command.util.tran
         {
             command.Description = "tran conversion tools";
             command.Command("create", (c) => create.Command.Configure(c,options));
+            command.Command("align", (c) => align.Command.Configure(c, options));
 
             command.OnExecute(() =>
             {
