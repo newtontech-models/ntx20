@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package ntx.core20;
+option csharp_namespace = "ntx20.api.proto";
+
+message WordScore {
+    uint32 count = 1;
+    uint32 hits = 2;
+    uint32 substitutions = 3;
+    uint32 insertions = 4;
+    uint32 deletions = 5;
+    double accuracy = 6;
+    double correctness = 7;
+  }
+
+  message DiarScore {
+  message SpeakerMapItem{
+    string ref = 1;
+    string res = 2;
+  }
+  uint32 count = 1;
+  uint32 hits = 2;
+  uint32 insertions = 4;
+  uint32 deletions = 5;
+  float recall = 6;
+  float precission = 7;
+  float frate = 8;
+  uint32 clusterMatch = 10;
+  uint32 clusterCount = 11;
+  float clusterPurity = 12;
+  repeated SpeakerMapItem speakerMap = 16;
+}
+
+
+  message Speed {
+    double streamDuration = 1;
+    double processingDuration = 2;
+    double factor = 3;
+  }
+
+message Alignment {
+    string key = 1;
+    string ref = 2;
+    string res = 3;
+    double ts = 4;
+}
+
+message AlignBlock {
+    string key = 1;
+    double offset = 2;
+    double duration = 3;
+    WordScore wscore = 4;
+    DiarScore dscore = 5;
+    repeated Alignment alignment = 6;
+}
+
+message Evaluation {
+
+  message Item {
+    string id = 1;
+    Speed speed = 2;
+    WordScore wscore = 3;
+    DiarScore dscore = 4;
+    repeated AlignBlock blocks = 5;
+  }
+
+  repeated Item items = 1;
+  Item total = 2;
+
+}
