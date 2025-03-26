@@ -65,19 +65,44 @@ namespace ntx.api.utils
     public class TextItem
     {
         public string Text { get; set; }
-        public int Index { get; set; }
         public int Block { get; set; }
         public string Speaker { get; set; }
-        public string Value { get; set; }
-        public double? Start { get; set; }
-        public double? End { get; set; }
-        public bool Eval { get; set; }
+        
+
+        public string ItemText  { 
+            get {
+                return string.Join("",Items.Where(x => x.Key == "txt").Select(x => x.S).ToArray());
+            }
+        }
+
+        public TextItem()
+        {
+            Items = [];
+        }
+
+        public List<ntx20.api.proto.Item> Items {  get; private set; }
+
     }
-    public class AlignedItem
+    public class AlignedTextItem
     {
         public TextItem Reference { get; set; }
         public TextItem Result { get; set; }
         public DTWMatchType Match { get; set; }
+
+        public string MatchString
+        {
+            get
+            {
+                if (Reference?.Text.StartsWith("#!") == true || Result?.Text.StartsWith("#!") == true)
+                {
+                    return "skip:" + Match.ToString();
+                }
+                else
+                {
+                    return Match.ToString();
+                }
+            }
+        }
     }
     public static class DTW
     {
@@ -155,7 +180,7 @@ namespace ntx.api.utils
         }
 
 
-        static List<AlignedItem> AlignFull(List<TextItem> reference, List<TextItem> result, bool ignorecase ,int nbest)
+        static List<AlignedTextItem> AlignFull(List<TextItem> reference, List<TextItem> result, bool ignorecase ,int nbest)
         {
             List<State> last = new List<State>() { new State(0,0) { Bp = null, Fscore = 0.0f, Bscore = GetScore(reference.Count + 2, result.Count + 2) } };
             for (int resInd = 0; resInd <= result.Count; resInd++)
@@ -209,7 +234,7 @@ namespace ntx.api.utils
                 bestbp = bestbp.From;
             }
             _list.Reverse();
-            List<AlignedItem> ret = new List<AlignedItem>();
+            List<AlignedTextItem> ret = new List<AlignedTextItem>();
             foreach (var i in _list)
             {
                 int refpos = i.RefPos - i.Sub - i.Del;
@@ -217,12 +242,12 @@ namespace ntx.api.utils
 
                 for (int z = 0; z < i.Ins; z++)
                 {
-                    ret.Add(new AlignedItem { Match = DTWMatchType.ins, Result = result[respos], Reference = null });
+                    ret.Add(new AlignedTextItem { Match = DTWMatchType.ins, Result = result[respos], Reference = null });
                     respos++;
                 }
                 for (int z = 0; z < i.Del; z++)
                 {
-                    ret.Add(new AlignedItem { Match = DTWMatchType.del, Result = null, Reference = reference[refpos] });
+                    ret.Add(new AlignedTextItem { Match = DTWMatchType.del, Result = null, Reference = reference[refpos] });
                     refpos++;
                 }
 
@@ -232,12 +257,12 @@ namespace ntx.api.utils
                     split = split & !reference[refpos].Text.StartsWith("#!") & !result[respos].Text.StartsWith("#!");
                     if (split)
                     {
-                        ret.Add(new AlignedItem { Match = DTWMatchType.del, Result = result[respos], Reference = null, });
-                        ret.Add(new AlignedItem { Match = DTWMatchType.ins, Result = null, Reference = reference[refpos] });
+                        ret.Add(new AlignedTextItem { Match = DTWMatchType.del, Result = result[respos], Reference = null, });
+                        ret.Add(new AlignedTextItem { Match = DTWMatchType.ins, Result = null, Reference = reference[refpos] });
                     }
                     else
                     {
-                        ret.Add(new AlignedItem { Match = DTWMatchType.sub, Result = result[respos], Reference = reference[refpos] });
+                        ret.Add(new AlignedTextItem { Match = DTWMatchType.sub, Result = result[respos], Reference = reference[refpos] });
                     }
                     respos++;
                     refpos++;
@@ -249,19 +274,19 @@ namespace ntx.api.utils
                     split = split & !reference[refpos].Text.StartsWith("#!") & !result[respos].Text.StartsWith("#!");
                     if (split)
                     {
-                        ret.Add(new AlignedItem { Match = DTWMatchType.del, Result = result[respos], Reference = null });
-                        ret.Add(new AlignedItem { Match = DTWMatchType.ins, Result = null, Reference = reference[refpos] });
+                        ret.Add(new AlignedTextItem { Match = DTWMatchType.del, Result = result[respos], Reference = null });
+                        ret.Add(new AlignedTextItem { Match = DTWMatchType.ins, Result = null, Reference = reference[refpos] });
                     }
                     else
                     {
-                        ret.Add(new AlignedItem { Match = DTWMatchType.sub, Result = result[respos], Reference = reference[refpos] });
+                        ret.Add(new AlignedTextItem { Match = DTWMatchType.sub, Result = result[respos], Reference = reference[refpos] });
                     }
                 }
             }
             return ret;
         }
 
-        static List<AlignedItem> ProcessBlock(List<AlignedItem> block, bool ignorecase, int nbest)
+        static List<AlignedTextItem> ProcessBlock(List<AlignedTextItem> block, bool ignorecase, int nbest)
         {
             int sub = block.Count(x => x.Match == DTWMatchType.sub);
             int nonsub = block.Count(x => x.Match != DTWMatchType.sub);
@@ -273,10 +298,10 @@ namespace ntx.api.utils
             var result = block.Where(x => x.Result != null).Select(x => x.Result).ToList();
             return AlignFull(reference, result, ignorecase, nbest);
         }
-        public static List<AlignedItem> Tune(this List<AlignedItem> alignment, bool ignorecase = true, int nbest = 100)
+        public static List<AlignedTextItem> Tune(this List<AlignedTextItem> alignment, bool ignorecase = true, int nbest = 100)
         {
-            var ret = new List<AlignedItem>();
-            List<AlignedItem> block = null;
+            var ret = new List<AlignedTextItem>();
+            List<AlignedTextItem> block = null;
             foreach(var a in alignment)
             {
                 if(a.Match== DTWMatchType.hit)
@@ -290,7 +315,7 @@ namespace ntx.api.utils
                 }else
                 {
                     if (block == null)
-                        block = new List<AlignedItem>() { a };
+                        block = new List<AlignedTextItem>() { a };
                     else
                         block.Add(a);
                 }
@@ -301,16 +326,16 @@ namespace ntx.api.utils
             }
             return ret;
         }
-        public static List<AlignedItem> Tune2(this List<AlignedItem> block, bool ignorecase = true, int nbest = 100)
+        public static List<AlignedTextItem> Tune2(this List<AlignedTextItem> block, bool ignorecase = true, int nbest = 100)
         {
             var reference = block.Where(x => x.Reference != null).Select(x => x.Reference).ToList();
             var result = block.Where(x => x.Result != null).Select(x => x.Result).ToList();
             return AlignFull(reference, result, ignorecase, nbest);
         }
-        public static AlignedItem Inverse(this AlignedItem input)
+        public static AlignedTextItem Inverse(this AlignedTextItem input)
         {
 
-            var ret = new AlignedItem() {  Match= input.Match};
+            var ret = new AlignedTextItem() {  Match= input.Match};
             switch(input.Match)
             {
                 case DTWMatchType.del:
@@ -328,7 +353,7 @@ namespace ntx.api.utils
 
       
 
-        public static List<List<AlignedItem>> AlignWith(this List<TextItem> reference, List<TextItem> result, bool ignorecase=true,int nbest=100)
+        public static List<List<AlignedTextItem>> AlignWith(this List<TextItem> reference, List<TextItem> result, bool ignorecase=true,int nbest=100)
         {
             
             Dictionary<string, List<Tuple<int,int>>> refindex = new Dictionary<string, List<Tuple<int, int>>>();
@@ -415,32 +440,32 @@ namespace ntx.api.utils
                 bestbp = bestbp.From;
             }
             _list.Reverse();
-            List<AlignedItem> ret = new List<AlignedItem>();
+            List<AlignedTextItem> ret = new List<AlignedTextItem>();
             
             foreach (var i in _list)
             {
 
-                var cb = new List<AlignedItem>();
+                var cb = new List<AlignedTextItem>();
                 int refpos = i.RefPos - i.Sub - i.Del;
                 int respos = i.ResPos - i.Sub - i.Ins;
 
 
                 for (int z = 0; z < i.Del; z++)
                 {
-                    cb.Add(new AlignedItem { Match = DTWMatchType.del, Result = null, Reference = reference[refpos] });
+                    cb.Add(new AlignedTextItem { Match = DTWMatchType.del, Result = null, Reference = reference[refpos] });
                     refpos++;
                 }
 
                 for (int z = 0; z < i.Sub; z++)
                 {
-                    cb.Add(new AlignedItem { Match = DTWMatchType.sub, Result = result[respos], Reference = reference[refpos] });
+                    cb.Add(new AlignedTextItem { Match = DTWMatchType.sub, Result = result[respos], Reference = reference[refpos] });
                     respos++;
                     refpos++;
                 }
                 
                 for (int z = 0; z < i.Ins; z++)
                 {
-                    cb.Add(new AlignedItem { Match = DTWMatchType.ins, Result = result[respos], Reference = null });
+                    cb.Add(new AlignedTextItem { Match = DTWMatchType.ins, Result = result[respos], Reference = null });
                     respos++;
                 }
 
@@ -451,19 +476,19 @@ namespace ntx.api.utils
                 ret.AddRange(cb);
 
                 if (respos < result.Count && refpos < reference.Count)
-                    ret.Add(new AlignedItem { Match = DTWMatchType.hit, Result = result[respos], Reference = reference[refpos] });
+                    ret.Add(new AlignedTextItem { Match = DTWMatchType.hit, Result = result[respos], Reference = reference[refpos] });
 
                 
             }
 
-            var ret2 = new List<List<AlignedItem>>();
-            var cblock = new List<AlignedItem>();
+            var ret2 = new List<List<AlignedTextItem>>();
+            var cblock = new List<AlignedTextItem>();
             foreach (var a in ret)
             {
                 if (a.Reference != null && a.Reference.Block > ret2.Count)
                 {
                     ret2.Add(cblock.Tune());
-                    cblock = new List<AlignedItem>();
+                    cblock = new List<AlignedTextItem>();
                 }
 
                 cblock.Add(a);

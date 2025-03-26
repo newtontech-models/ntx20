@@ -133,11 +133,12 @@ namespace ntx20.command.util.tran.align
                 _ => throw new NotImplementedException($"unsuported reference format {IFormat}"),
             });
 
-            pipe = pipe.AlignWith(rpipe, SplitOption, PlusOption);
+            var alignment = await pipe.AlignWith(rpipe, SplitOption, PlusOption);
 
             await (OFormat switch
             {
-                "json" => pipe.RunWithSink(output.AsJsonProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker),
+                "json" => (new[] {alignment}).ToAsyncEnumerable().RunWithSink(output.AsJsonProtoSink<api.proto.EvaluationItem>(), autoFlush: Flush, cancellationToken: breaker),
+                "html" => alignment.ToHtmlStrings().ToAsyncEnumerable().RunWithSink(output.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
                 _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
             });
             output.Complete();
