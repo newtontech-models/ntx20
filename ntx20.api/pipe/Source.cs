@@ -243,6 +243,45 @@ namespace ntx20.api.pipe
 
             }
         }
+
+
+        public static async IAsyncEnumerable<Tuple<TarEntry,TarEntry>> ZipWith(this IAsyncEnumerable<TarEntry> first, IAsyncEnumerable<TarEntry> second)
+        {
+            Dictionary<string,TarEntry> cache = new Dictionary<string,TarEntry>();
+
+            var se = second.GetAsyncEnumerator();
+            await foreach(var f in first)
+            {
+                var id = Path.ChangeExtension(f.Name, "");
+                if (cache.ContainsKey(id))
+                {
+                    yield return Tuple.Create(f,cache[id]);
+                    cache.Remove(id);
+                    continue;
+                }
+                bool found = false;
+                while (await se.MoveNextAsync())
+                {
+                    var sid = Path.ChangeExtension(se.Current.Name, "");
+                    if (sid == id)
+                    {
+                        yield return Tuple.Create(f, se.Current);
+                        found = true;
+                        break;
+                    }
+                    else
+                    {
+                        cache[sid] = se.Current;
+                    }
+                }
+                if (!found)
+                {
+                    throw new Exception($"Can't create tuple for {id}");
+                }
+            }
+        }
+
+        
         public static async IAsyncEnumerable<TarEntry> AsTarSource(this Stream stream, [EnumeratorCancellation] CancellationToken token)
         {
             using (var tarReader = new TarReader(stream))

@@ -131,7 +131,7 @@ namespace ntx20.command.run.dtran
                     LexiconUrlOption = lexiconOption.GetValueOrDefault(),
                     ProcessingMode = processingMode.GetValueOrDefault().StartsWith("batch:") ? "batch" : processingMode.GetValueOrDefault(),
                     Parallelism = processingMode.GetValueOrDefault().StartsWith("batch:") ? uint.Parse(processingMode.GetValueOrDefault()[6..]) : 1,
-                    Retry = api.util.RetryWithBackoff.ParseFromCmd(retryOption.GetValueOrDefault()),
+                    Retry = CmdRetryWithBackoff.ParseFromCmd(retryOption.GetValueOrDefault()),
                     DontMakeDirs = nomkdir.HasValue(),
                     OverWrite = overwrite.HasValue(),
                     Wrap = wrap.HasValue(),
@@ -166,7 +166,7 @@ namespace ntx20.command.run.dtran
         private bool Wrap { get; set; }
 
         private Dictionary<string,string> Labels { get; set; }
-        private api.util.RetryWithBackoff Retry { get; set; }
+        private CmdRetryWithBackoff Retry { get; set; }
         public Command(CommandLineApplication app, CommandLineOptions opts)
         {
             _app = app;

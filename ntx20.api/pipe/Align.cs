@@ -20,6 +20,46 @@ namespace ntx20.api.pipe
     public static partial class Pipe
     {
         
+
+        public static async IAsyncEnumerable<proto.Payload> ToTranStream(this IAsyncEnumerable<string> source)
+        {
+            Regex split = new Regex(Constants.DefaultTextSplit);
+            Regex plus = new Regex(Constants.DefaultPlusMatch);
+            Regex spk = new Regex(@"^\s*@(\S+):");
+            var cspk = "Nobody";
+            await foreach (var x in source)
+            {
+                var line = x.Trim();
+                var match = spk.Match(line);
+                if (match.Success)
+                {
+                    cspk= match.Groups[1].Value;
+                    line = spk.Replace(line, "");
+                }
+                if (line.Length == 0 || line.StartsWith("#"))
+                    continue;
+                var ret = new proto.Payload { Track = "tran", Chunk = { new Item { Key = "spk", S = cspk } } };
+                foreach (var s in split.Split(line))
+                {
+                    if (s == "")
+                        continue;
+                    if (plus.IsMatch(s))
+                    {
+                        ret.Chunk.Add(
+                            new proto.Item { Key = "txt", S = s, Tags = { "+" } }
+                            );
+                    }
+                    else
+                    {
+                        ret.Chunk.Add(
+                            new proto.Item { Key = "txt", S = s }
+                            );
+                    }
+                }
+                yield return ret;
+            }
+        }
+
         internal static async IAsyncEnumerable<proto.Payload> ViaReLabelAndSplit(this IAsyncEnumerable<proto.Payload> source, Regex split, Regex plus)
         {
 

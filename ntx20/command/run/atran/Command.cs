@@ -37,10 +37,6 @@ namespace ntx20.command.run.atran
                  CommandOptionType.SingleValue
                  );
 
-            var processingMode = command.Option("-m|--mode <one>",
-                 "processing mode one|batch:xx where xx is paralelism ",
-                 CommandOptionType.SingleValue
-                 );
 
             var iFormat = command.Option($"-r|--reader <raw:4096>",
                 "read input as raw:$chunkSizeBytes|proto|json",
@@ -55,6 +51,10 @@ namespace ntx20.command.run.atran
                 "enable flush on every write",
                 CommandOptionType.NoValue
                 );
+            var processingMode = command.Option("-m|--mode <one>",
+                 "processing mode one|tar:xx where xx is paralelism ",
+                 CommandOptionType.SingleValue
+                 );
             var retryOption = command.Option("--retry <10:1000:1.5>"
               , "retry with exponencial backoff (batch mode only) count:initDelayMs:multiplier"
              , CommandOptionType.SingleValue);
@@ -114,8 +114,8 @@ namespace ntx20.command.run.atran
                     Pipe = pipe.HasValue(),
                     DecoderFeatures = decoderFeatures.GetValueOrDefault(),
                     LexiconUrlOption = lexiconOption.GetValueOrDefault(),
-                    ProcessingMode = api.util.ProcessingMode.Parse(processingMode.GetValueOrDefault()),
-                    Retry = api.util.RetryWithBackoff.ParseFromCmd(retryOption.GetValueOrDefault()),
+                    ProcessingMode = CmdProcessingMode.Parse(processingMode.GetValueOrDefault()),
+                    Retry = CmdRetryWithBackoff.ParseFromCmd(retryOption.GetValueOrDefault()),
 
                 };
 
@@ -135,12 +135,12 @@ namespace ntx20.command.run.atran
         private string LexiconUrlOption { get; set; }
         private string DecoderFeatures { get; set; }
 
-        private api.util.ProcessingMode ProcessingMode { get; set; }
         private bool Pipe { get; set; }
         
         private bool Flush { get; set; }
-
-        private api.util.RetryWithBackoff Retry { get; set; }
+        
+        private CmdProcessingMode ProcessingMode { get; set; }
+        private CmdRetryWithBackoff Retry { get; set; }
         public Command(CommandLineApplication app, CommandLineOptions opts)
         {
             _app = app;
@@ -208,11 +208,11 @@ namespace ntx20.command.run.atran
 
             async Task<TarEntry> RunTar(TarEntry x)
             {
+                var newname = x.Name + "."+OFormat.Replace(':','-');
                 _logger.LogInformation($"Starting {x.Name}");
-                var ret = new UstarTarEntry(TarEntryType.RegularFile, x.Name + ".atran");
+                var ret = new UstarTarEntry(TarEntryType.RegularFile, newname);
                 ret.DataStream = new MemoryStream();
                 await DoJob(x.DataStream, ret.DataStream);
-                
                 ret.DataStream.Seek(0, SeekOrigin.Begin);
                 _logger.LogInformation($"Completed {ret.Name}");
                 return ret;

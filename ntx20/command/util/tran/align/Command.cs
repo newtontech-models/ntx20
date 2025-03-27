@@ -14,6 +14,9 @@ using System;
 using Google.Protobuf.WellKnownTypes;
 using System.Data;
 using System.IO.Pipelines;
+using System.Security.Cryptography.Xml;
+using static Grpc.Core.Metadata;
+using System.Formats.Tar;
 
 namespace ntx20.command.util.tran.align
 {
@@ -40,13 +43,13 @@ namespace ntx20.command.util.tran.align
             CommandOptionType.SingleValue
             );
 
-            var iFormat = command.Option($"--iformat <json>",
-              "read input as json|txt|trsx",
+            var iFormat = command.Option($"--iformat <auto>",
+              "read input as json|text|trsx",
               CommandOptionType.SingleValue
               );
 
-            var rFormat = command.Option($"--rformat <json>",
-              "read input as json|txt|trsx",
+            var rFormat = command.Option($"--rformat <auto>",
+              "read input as json|text|trsx",
               CommandOptionType.SingleValue
               );
 
@@ -70,38 +73,44 @@ namespace ntx20.command.util.tran.align
                 "enable flush on every write",
                 CommandOptionType.NoValue
                 );
-            var oFormat = command.Option($"-w|--writer <json>",
+            var oFormat = command.Option($"--oformat <json>",
                 "write output as json|html",
                 CommandOptionType.SingleValue
                 );
 
+            var processingMode = command.Option("-m|--mode <one>",
+               "processing mode one|tar:xx where xx is paralelism ",
+               CommandOptionType.SingleValue
+               );
 
             command.OnExecute(() =>
             {
                 inputUriOption.MustSetValue(command);
+                refUriOption.MustSetValue(command);
                 options.Command = new Command(command)
                 {
                     OutputUriOption = outputUriOption.GetValueOrDefault(),
                     InputUriOption = inputUriOption.Value(),
                     RefUriOption = refUriOption.Value(),
                     OFormat = oFormat.GetValueOrDefault(),
-                    IFormat = iFormat.GetValueOrDefault(),
-                    RFormat = rFormat.GetValueOrDefault(),
+                    IFormatGlobal = CmdFormat.FromSuffix(iFormat.GetValueOrDefault(), inputUriOption.GetValueOrDefault()),
+                    RFormatGlobal = CmdFormat.FromSuffix(rFormat.GetValueOrDefault(), refUriOption.GetValueOrDefault()),
                     Flush = flush.HasValue(),
                     SplitOption = splitOption.GetValueOrDefault()=="default" ? Constants.DefaultTextSplit : splitOption.GetValueOrDefault(),
                     PlusOption = plusOption.GetValueOrDefault() == "default" ? Constants.DefaultPlusMatch : plusOption.GetValueOrDefault(),
+                    ProcessingMode = CmdProcessingMode.Parse(processingMode.GetValueOrDefault()),
                 };
                 return 0;
             });
         }
 
+        private CmdProcessingMode ProcessingMode { get; set; }
         private string OutputUriOption { get; set; }
         private string InputUriOption { get; set; }
         private string RefUriOption { get; set; }
-        private string TrackOption { get; set; }
         private string OFormat { get; set; }
-        private string IFormat { get; set; }
-        private string RFormat { get; set; }
+        private CmdFormat IFormatGlobal { get; set; }
+        private CmdFormat RFormatGlobal { get; set; }
         private string SplitOption { get; set; }
         private string PlusOption { get; set; }
         private bool Flush { get; set; }
@@ -119,27 +128,61 @@ namespace ntx20.command.util.tran.align
             using var reference = LazyStream.Input(RefUriOption, breaker);
 
 
-            var pipe = (IFormat switch
+            async Task DoJob(Stream istream, Stream rstream, Stream oStream, CmdFormat IFormat,CmdFormat RFormat)
             {
-                "json" => input.AsProtoJsonSource<api.proto.Payload>(breaker),
-                "trsx" => input.AsTrsxTranSource(breaker),
-                _ => throw new NotImplementedException($"unsuported input format {IFormat}"),
-            });
-
-            var rpipe = (RFormat switch
+                var pipe = (IFormat.Format switch
+                {
+                    "json" => istream.AsProtoJsonSource<api.proto.Payload>(breaker)
+                    .RemoveItem(x => x.Tags.Intersect(["la", "noise"]).Count()!=0),
+                    "trsx" => istream.AsTrsxTranSource(breaker),
+                    "text" => istream.AsTextChunkSource(breaker).ToTranStream(),
+                    _ => throw new NotImplementedException($"unsuported input format {IFormat}"),
+                });
+                var rpipe = (RFormat.Format switch
+                {
+                    "json" => rstream.AsProtoJsonSource<api.proto.Payload>(breaker)
+                    .RemoveItem(x => x.Tags.Intersect(["+", "noise"]).Count() != 0),
+                    "trsx" => rstream.AsTrsxTranSource(breaker),
+                    "text" => rstream.AsTextChunkSource(breaker).ToTranStream(),
+                    _ => throw new NotImplementedException($"unsuported reference format {RFormat}"),
+                });
+                var alignment = await pipe.AlignWith(rpipe, SplitOption, PlusOption);
+                await (OFormat switch
+                {
+                    "json" => (new[] { alignment }).ToAsyncEnumerable().RunWithSink(oStream.AsJsonProtoSink<api.proto.EvaluationItem>(), autoFlush: Flush, cancellationToken: breaker),
+                    "html" => alignment.ToHtmlStrings().ToAsyncEnumerable().RunWithSink(oStream.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
+                    _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
+                });
+            }
+            async Task RunOne()
             {
-                "json" => reference.AsProtoJsonSource<api.proto.Payload>(breaker),
-                "trsx" => reference.AsTrsxTranSource(breaker),
-                _ => throw new NotImplementedException($"unsuported reference format {IFormat}"),
-            });
+                _logger.LogInformation($"Starting {OutputUriOption}");
+                await DoJob(input, reference, output, IFormatGlobal,RFormatGlobal);
+                _logger.LogInformation($"Completed {OutputUriOption}");
+            }
 
-            var alignment = await pipe.AlignWith(rpipe, SplitOption, PlusOption);
-
-            await (OFormat switch
+            async Task<TarEntry> RunTar(Tuple<TarEntry, TarEntry> x)
             {
-                "json" => (new[] {alignment}).ToAsyncEnumerable().RunWithSink(output.AsJsonProtoSink<api.proto.EvaluationItem>(), autoFlush: Flush, cancellationToken: breaker),
-                "html" => alignment.ToHtmlStrings().ToAsyncEnumerable().RunWithSink(output.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
-                _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
+                var newname = Path.ChangeExtension(x.Item1.Name, OFormat.Replace(':', '-'));
+                _logger.LogInformation($"Starting {newname}");
+                var ret = new UstarTarEntry(TarEntryType.RegularFile, newname);
+                ret.DataStream = new MemoryStream();
+                await DoJob(x.Item1.DataStream, x.Item2.DataStream, ret.DataStream, 
+                    IFormatGlobal.ForPath(x.Item1.Name),
+                    RFormatGlobal.ForPath(x.Item2.Name)
+                    );
+                ret.DataStream.Seek(0, SeekOrigin.Begin);
+                _logger.LogInformation($"Completed {ret.Name}");
+                return ret;
+            }
+
+            await (ProcessingMode.Mode switch
+            {
+                "one" => RunOne(),
+                "tar" => input.AsTarSource(breaker).ZipWith(reference.AsTarSource(breaker))
+                        .ViaAsyncMapperParallel(RunTar, ProcessingMode.Parallelism, null, breaker)
+                        .RunWithSink(output.AsTarSink()),
+                _ => throw new NotImplementedException(ProcessingMode.Mode)
             });
             output.Complete();
             return 0;

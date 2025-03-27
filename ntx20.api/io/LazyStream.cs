@@ -36,10 +36,14 @@ namespace ntx20.api.io
 
         public static LazyStream Input(string url, CancellationToken token = default)
         {
+            if(url=="none")
+                return null;
             return new LazyStream(StreamProvider.Input(url),true);
         }
         public static LazyStream Output(string url, string contentType, CancellationToken token = default, bool createDir=false)
         {
+            if (url == "none")
+                return null;
             return new LazyStream(StreamProvider.Output(url,contentType, token, createDir),false);
         }
 

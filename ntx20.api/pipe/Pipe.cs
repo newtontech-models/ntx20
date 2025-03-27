@@ -336,8 +336,11 @@ namespace ntx20.api.pipe
         }
 
         public static async IAsyncEnumerable<Y> ViaAsyncMapperParallel<X, Y>(this IAsyncEnumerable<X> source, 
-            Func<X, Task<Y>> mapper,int parallelism, util.RetryWithBackoff retry, [EnumeratorCancellation]  CancellationToken breaker = default)
+            Func<X, Task<Y>> mapper,int parallelism, CmdRetryWithBackoff retry = null, [EnumeratorCancellation]  CancellationToken breaker = default)
         {
+
+            if (retry == null)
+                retry = new CmdRetryWithBackoff(1);
 
             using BlockingCollection<Y> output = new BlockingCollection<Y>(2 * (int)parallelism);
             var feed = Parallel.ForEachAsync(source,

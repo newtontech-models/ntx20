@@ -10,6 +10,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ntx20.api.utils;
+using System.IO;
+using static Grpc.Core.Metadata;
+using System.Formats.Tar;
+using Azure.Core;
 namespace ntx20.command.run.diar
 {
 
@@ -45,6 +49,13 @@ namespace ntx20.command.run.diar
                 "enable flush on every write",
                 CommandOptionType.NoValue
                 );
+            var processingMode = command.Option("-m|--mode <one>",
+                 "processing mode one|tar:xx where xx is paralelism ",
+                 CommandOptionType.SingleValue
+                 );
+            var retryOption = command.Option("--retry <10:1000:1.5>"
+              , "retry with exponencial backoff (batch mode only) count:initDelayMs:multiplier"
+             , CommandOptionType.SingleValue);
 
             /*input*/
             command.ExtendedHelpText = Environment.NewLine + "Options: " + Environment.NewLine;
@@ -94,6 +105,8 @@ namespace ntx20.command.run.diar
                     Flush = flush.HasValue(),
                     Pipe = pipe.HasValue(),
                     DecoderFeatures = decoderFeatures.GetValueOrDefault(),
+                    ProcessingMode = CmdProcessingMode.Parse(processingMode.GetValueOrDefault()),
+                    Retry = CmdRetryWithBackoff.ParseFromCmd(retryOption.GetValueOrDefault()),
 
                 };
 
@@ -114,6 +127,9 @@ namespace ntx20.command.run.diar
         private bool Pipe { get; set; }
 
         private bool Flush { get; set; }
+
+        private CmdProcessingMode ProcessingMode { get; set; }
+        private CmdRetryWithBackoff Retry { get; set; }
         public Command(CommandLineApplication app, CommandLineOptions opts)
         {
             _app = app;
@@ -126,42 +142,67 @@ namespace ntx20.command.run.diar
             using var input = LazyStream.Input(InputUriOption, breaker);
             using var output = LazyStream.Output(OutputUriOption, "binary", breaker);
 
-            using var call = _opts.CreateStreaming();
-
+            
             var configuration = new api.proto.Payload
             {
                 Chunk =
-                {
-                    new api.proto.Item{ Key = Const.i_audio_format, S = AudioFormatOption, Type = "s" },
-                    new api.proto.Item { Key = Const.i_audio_channel, S = ChannelOption, Type = "s" },
-                    new api.proto.Item { Key = Const.features, S = DecoderFeatures, Type = "s" },
-                }
+                    {
+                        new api.proto.Item{ Key = Const.i_audio_format, S = AudioFormatOption, Type = "s" },
+                        new api.proto.Item { Key = Const.i_audio_channel, S = ChannelOption, Type = "s" },
+                        new api.proto.Item { Key = Const.features, S = DecoderFeatures, Type = "s" },
+                    }
             };
 
-            var configured = await call.Configure(configuration, breaker);
-            var accepts = configured.Chunk.First(x => x.Key == "accepts").Tags.ToArray();
 
-            _logger.LogInformation($"Task {_opts.TheService.Service}:{_opts.TheService.Version} configured");
-
-            var pipe = (IFormat switch
+            async Task DoJob(Stream istrem, Stream ostream)
             {
-                "raw" => input.AsRawAudioSource(chunkSize: (int)ChunkSizeBytes, cancellationToken: breaker),
-                "proto" => input.AsProtoBinarySource<api.proto.Payload>(breaker),
-                "json" => input.AsProtoJsonSource<api.proto.Payload>(breaker),
-                _ => throw new NotImplementedException($"unsuported input format {IFormat}"),
-            });
+                using var call = _opts.CreateStreaming();
+                var configured = await call.Configure(configuration, breaker);
+                var accepts = configured.Chunk.First(x => x.Key == "accepts").Tags.ToArray();
+                var pipe = (IFormat switch
+                {
+                    "raw" => istrem.AsRawAudioSource(chunkSize: (int)ChunkSizeBytes, cancellationToken: breaker),
+                    "proto" => istrem.AsProtoBinarySource<api.proto.Payload>(breaker),
+                    "json" => istrem.AsProtoJsonSource<api.proto.Payload>(breaker),
+                    _ => throw new NotImplementedException($"unsuported input format {IFormat}"),
+                });
 
 
-            pipe=pipe.ViaTaskRunner(call, accepts, Pipe);
+                pipe = pipe.ViaTaskRunner(call, accepts, Pipe);
 
-            await (OFormat switch
+                await (OFormat switch
+                {
+                    "proto" => pipe.RunWithSink(ostream.AsBinaryProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker),
+                    "json" => pipe.RunWithSink(ostream.AsJsonProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker),
+                    _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
+                });
+            }
+            async Task RunOne()
             {
-                "proto" => pipe.RunWithSink(output.AsBinaryProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker),
-                "json" => pipe.RunWithSink(output.AsJsonProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker),
-                _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
+                _logger.LogInformation($"Starting {InputUriOption}");
+                await DoJob(input, output);
+                _logger.LogInformation($"Completed {InputUriOption}");
+            }
+
+            async Task<TarEntry> RunTar(TarEntry x)
+            {
+                var newname = x.Name + "." + OFormat.Replace(':', '-');
+                _logger.LogInformation($"Starting {x.Name}");
+                var ret = new UstarTarEntry(TarEntryType.RegularFile, newname);
+                ret.DataStream = new MemoryStream();
+                await DoJob(x.DataStream, ret.DataStream);
+                ret.DataStream.Seek(0, SeekOrigin.Begin);
+                _logger.LogInformation($"Completed {ret.Name}");
+                return ret;
+            }
+
+            await (ProcessingMode.Mode switch
+            {
+                "one" => RunOne(),
+                "tar" => input.AsTarSource(breaker).ViaAsyncMapperParallel(RunTar, ProcessingMode.Parallelism, Retry, breaker).RunWithSink(output.AsTarSink()),
+                _ => throw new NotImplementedException(ProcessingMode.Mode)
             });
             output.Complete();
-            _logger.LogInformation($"Task  {_opts.TheService.Service}:{_opts.TheService.Version} completed");
             return 0;
         }
 
