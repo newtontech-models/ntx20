@@ -3,7 +3,7 @@ PROJECT_GIT_HASH := $(shell git rev-parse --short HEAD)
 COMPANY_NAME := nanotrix
 PROJECT_NAME := ntx20
 
-export PROJECT_VERSION := $(shell git rev-parse --abbrev-ref HEAD)-$(PROJECT_GIT_HASH)
+export PROJECT_VERSION ?= $(shell git rev-parse --abbrev-ref HEAD)-$(PROJECT_GIT_HASH)
 
 
 all: apps.ntx20.cloud/install/$(PROJECT_NAME).tgz status
