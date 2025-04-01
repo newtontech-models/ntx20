@@ -158,6 +158,8 @@ namespace ntx20.api.pipe
             }
         }
 
+
+
         public static async IAsyncEnumerable<string> ToText(this IAsyncEnumerable<proto.Payload> source, string track)
         {
             bool fnoise = true;
@@ -236,8 +238,37 @@ namespace ntx20.api.pipe
                 }
             }
         }
+        public static async IAsyncEnumerable<proto.Payload> SelectChunkItem(this IAsyncEnumerable<proto.Payload> source, Func<Item, Item> select)
+        {
+            await foreach (var x in source)
+            {
+                var ret = new proto.Payload() { Track = x.Track };
 
+                foreach (var v in x.Chunk)
+                {
+                    ret.Chunk.Add(select(v));
+                }
 
+                yield return ret;
+            }
+        }
+
+        public static async IAsyncEnumerable<proto.Payload> WhereChunkItem(this IAsyncEnumerable<proto.Payload> source, Func<Item,bool> predicate)
+        {
+            await foreach (var x in source)
+            {
+                var ret = new proto.Payload() { Track = x.Track };
+
+                foreach (var v in x.Chunk)
+                {
+                    if (!predicate(v))
+                        continue;
+                    ret.Chunk.Add(v);
+                }
+
+                yield return ret;
+            }
+        }
         public static async IAsyncEnumerable<string> ToSimpleText(this IAsyncEnumerable<proto.Payload> source)
         {
             await foreach (var x in source)
@@ -869,6 +900,50 @@ namespace ntx20.api.pipe
             }
         }
 
+        internal static void Add(this proto.Evaluation e, proto.Evaluation a)
+        {
+            e.Items.Add(a);
+            if (a.Dscore != null)
+            {
+                e.Dscore.ClusterCount += a.Dscore.ClusterCount;
+                e.Dscore.ClusterMatch += a.Dscore.ClusterMatch;
+                e.Dscore.Count+= a.Dscore.Count;
+                e.Dscore.Deletions += a.Dscore.Deletions;
+                e.Dscore.Insertions+= a.Dscore.Insertions;
+                e.Dscore.Hits += a.Dscore.Hits;
+                //e.Dscore.GetResults();
+            }
+            if (a.Wscore != null)
+            {
+                e.Wscore.Count += a.Wscore.Count;
+                e.Wscore.Deletions += a.Wscore.Deletions;
+                e.Wscore.Insertions += a.Wscore.Insertions;
+                e.Wscore.Hits += a.Wscore.Hits;
+                e.Wscore.Substitutions += a.Wscore.Substitutions;
+                //e.Wscore.GetResults();
+            }
+                
+        }
+        public static async Task<proto.Evaluation> Evaluate(this IAsyncEnumerable<proto.Evaluation> source, bool keepBlocks = false)
+        {
+            var ret = new Evaluation { Dscore = new DiarScore { }, Wscore = new WordScore { } };
+            await foreach (var item in source)
+            {
+                if (!keepBlocks)
+                {
+                    item.Blocks.Clear();
+                    if(item.Dscore!= null) 
+                        item.Dscore.SpeakerMap.Clear();
+                }
+
+                ret.Add(item);
+            }
+            if (ret.Dscore != null)
+                ret.Dscore.GetResults();
+            if (ret.Wscore != null)
+                ret.Wscore.GetResults();
+            return ret;
+        }
 
         public static async IAsyncEnumerable<proto.Payload> ViaGRPCCall(this IAsyncEnumerable<proto.Payload> source, Grpc.Core.AsyncDuplexStreamingCall<proto.Payload, proto.Payload> call)
         {

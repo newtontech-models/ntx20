@@ -57,17 +57,11 @@ message AlignBlock {
     repeated Alignment alignment = 8;
 
 }
- message EvaluationItem {
+ message Evaluation {
     string id = 1;
     Speed speed = 2;
     WordScore wscore = 3;
     DiarScore dscore = 4;
     repeated AlignBlock blocks = 5;
+    repeated Evaluation items = 6;
   }
-
-message Evaluation {
-
-  repeated EvaluationItem items = 1;
-  EvaluationItem total = 2;
-
-}

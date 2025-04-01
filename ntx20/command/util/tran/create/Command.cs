@@ -59,11 +59,11 @@ namespace ntx20.command.util.tran.create
                  CommandOptionType.SingleValue
                  );
             var iFormat = command.Option($"--iformat <json:pnc>",
-                "read input as json:pnc|json:tpc",
+                "read input as json:pnc|json:tpc|trsx",
                 CommandOptionType.SingleValue
                 );
             var dFormat = command.Option($"--dformat <json:spk>",
-                "read input as json:spk",
+                "read input as json:spk|trsx",
                 CommandOptionType.SingleValue
                 );
 
@@ -128,6 +128,7 @@ namespace ntx20.command.util.tran.create
                     "none" => (new api.proto.Payload[0]).ToAsyncEnumerable(),
                     "json" => astream.AsProtoJsonSource<api.proto.Payload>(breaker).Where(x=>x.Track == IFormat.Param)
                                .Select(x => { if (x.Track == IFormat.Param) { x.Track = "tpc"; return x; } else { return x; } }),
+                    "trsx" => astream.AsTrsxTranSource(breaker).Select(x=> { x.Track = "tpc"; return x; }).WhereChunkItem(x=> x.Key != "spk"),
 
                      _ => throw new NotImplementedException($"unsuported input format {IFormat}"),
                 });
@@ -143,8 +144,11 @@ namespace ntx20.command.util.tran.create
                         } },}).ToAsyncEnumerable(),
                     "json" => dstream.AsProtoJsonSource<api.proto.Payload>(breaker).Where(x => x.Track == DFormat.Param)
                     .Select(x => { if (x.Track == DFormat.Param) { x.Track = "spk"; return x; } else { return x; } }),
+                    "trsx" => dstream.AsTrsxTranSource(breaker).Select(x => { x.Track = "spk"; return x; })
+                    .WhereChunkItem(x => x.Key == "spk" || x.Key == "ts").SelectChunkItem(x=> { if (x.Key == "spk") { x.Key = "txt"; } return x; }),
                     _ => throw new NotImplementedException($"unsuported input format {DFormat}"),
                 });
+                
 
                 var pipe  = atranStream
                     .MergeByTsWith(diarStream)

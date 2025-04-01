@@ -9,9 +9,10 @@ namespace ntx20.command.util.tran
     {
         internal static void Configure(CommandLineApplication command, CommandLineOptions options)
         {
-            command.Description = "tran conversion tools";
+            command.Description = "transcription tools";
             command.Command("create", (c) => create.Command.Configure(c,options));
             command.Command("align", (c) => align.Command.Configure(c, options));
+            command.Command("eval", (c) => eval.Command.Configure(c, options));
 
             command.OnExecute(() =>
             {

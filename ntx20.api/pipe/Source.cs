@@ -304,10 +304,18 @@ namespace ntx20.api.pipe
         internal static Dictionary<string, string> GetSpeakerMap(XElement speakers)
         {
             var ret = new Dictionary<string, string>();
+            var reverse = new Dictionary<string, string>();
             foreach (var spk in speakers.XPathSelectElements("//s"))
             {
-                var name = spk.Attribute("firstname").Value + " " + spk.Attribute("surname").Value;
+                var val = spk.Attribute("id").Value.Trim();
+                var name = (spk.Attribute("firstname").Value.Trim() + " " + spk.Attribute("surname").Value.Trim()).Trim();
+                if(reverse.ContainsKey(name) && reverse[name]!=val)
+                {
+                    name += " "+val;
+                }
+                name = name.Trim();
                 ret[spk.Attribute("id").Value] = name.Trim();
+                reverse[name] = val;
             }
             return ret;
         }
@@ -323,7 +331,12 @@ namespace ntx20.api.pipe
                 {
                     var bstart = XmlConvert.ToTimeSpan(par.Attribute("b").Value).TotalMilliseconds;
                     var bend = XmlConvert.ToTimeSpan(par.Attribute("e").Value).TotalMilliseconds;
+                    if (bstart == bend)
+                    {
+                        continue;
+                    }
                     var spkId = par.Attribute("s")?.Value == null ? "nobody": speakers[par.Attribute("s").Value];
+                    
                     var ret = new proto.Payload() {Track="tran", Chunk = { new proto.Item {Key="ts", D= bstart }, new proto.Item { Key="spk", S= spkId} } };
                     lastSpkId = spkId;
                     var lastTs = bstart;

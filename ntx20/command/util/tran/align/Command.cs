@@ -128,7 +128,7 @@ namespace ntx20.command.util.tran.align
             using var reference = LazyStream.Input(RefUriOption, breaker);
 
 
-            async Task DoJob(Stream istream, Stream rstream, Stream oStream, CmdFormat IFormat,CmdFormat RFormat)
+            async Task DoJob(Stream istream, Stream rstream, Stream oStream, CmdFormat IFormat,CmdFormat RFormat, string id)
             {
                 var pipe = (IFormat.Format switch
                 {
@@ -147,9 +147,10 @@ namespace ntx20.command.util.tran.align
                     _ => throw new NotImplementedException($"unsuported reference format {RFormat}"),
                 });
                 var alignment = await pipe.AlignWith(rpipe, SplitOption, PlusOption);
+                alignment.Id = id;
                 await (OFormat switch
                 {
-                    "json" => (new[] { alignment }).ToAsyncEnumerable().RunWithSink(oStream.AsJsonProtoSink<api.proto.EvaluationItem>(), autoFlush: Flush, cancellationToken: breaker),
+                    "json" => (new[] { alignment }).ToAsyncEnumerable().RunWithSink(oStream.AsJsonProtoSink<api.proto.Evaluation>(), autoFlush: Flush, cancellationToken: breaker),
                     "html" => alignment.ToHtmlStrings().ToAsyncEnumerable().RunWithSink(oStream.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
                     _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
                 });
@@ -157,19 +158,22 @@ namespace ntx20.command.util.tran.align
             async Task RunOne()
             {
                 _logger.LogInformation($"Starting {OutputUriOption}");
-                await DoJob(input, reference, output, IFormatGlobal,RFormatGlobal);
+                var id = Path.ChangeExtension(OutputUriOption, "");
+                await DoJob(input, reference, output, IFormatGlobal,RFormatGlobal,id);
                 _logger.LogInformation($"Completed {OutputUriOption}");
             }
 
             async Task<TarEntry> RunTar(Tuple<TarEntry, TarEntry> x)
             {
                 var newname = Path.ChangeExtension(x.Item1.Name, OFormat.Replace(':', '-'));
+                var id = Path.ChangeExtension(newname, "");
                 _logger.LogInformation($"Starting {newname}");
                 var ret = new UstarTarEntry(TarEntryType.RegularFile, newname);
                 ret.DataStream = new MemoryStream();
                 await DoJob(x.Item1.DataStream, x.Item2.DataStream, ret.DataStream, 
                     IFormatGlobal.ForPath(x.Item1.Name),
-                    RFormatGlobal.ForPath(x.Item2.Name)
+                    RFormatGlobal.ForPath(x.Item2.Name),
+                    id
                     );
                 ret.DataStream.Seek(0, SeekOrigin.Begin);
                 _logger.LogInformation($"Completed {ret.Name}");

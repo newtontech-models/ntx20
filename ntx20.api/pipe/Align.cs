@@ -339,12 +339,12 @@ namespace ntx20.api.pipe
             
         }
 
-        public static EvaluationItem Evaluate(this IEnumerable<AlignBlock> alignBlocks)
+        public static Evaluation Evaluate(this IEnumerable<AlignBlock> alignBlocks)
         {
 
             var ds = new DiarScore();
             var ws = new WordScore();
-            var ret = new EvaluationItem {  Wscore = ws, Dscore = ds};
+            var ret = new Evaluation {  Wscore = ws, Dscore = ds};
 
             var speakerMap = new Dictionary<string, string>();
             var ref2res = new Dictionary<string, Dictionary<string, long>>();
@@ -422,11 +422,11 @@ namespace ntx20.api.pipe
 
             }
 
-
+            
             foreach (var kv in res2ref)
             {
-                ds.ClusterCount += (UInt32)ref2res[kv.Value].Values.Sum();
-                ds.ClusterMatch += (UInt32)ref2res[kv.Value][kv.Key];
+                //ds.ClusterCount += (UInt32)ref2res[kv.Value].Values.Sum();
+                //ds.ClusterMatch += (UInt32)ref2res[kv.Value][kv.Key];
                 ds.SpeakerMap.Add(kv.Key, kv.Value);
             }
             
@@ -493,7 +493,7 @@ namespace ntx20.api.pipe
 
         } 
 
-        public static async Task<EvaluationItem> AlignWith(this IAsyncEnumerable<proto.Payload> source, 
+        public static async Task<Evaluation> AlignWith(this IAsyncEnumerable<proto.Payload> source, 
             IAsyncEnumerable<proto.Payload> reference, string SplitOption, string PlusOption)
         {
             Regex split = new Regex(SplitOption);
@@ -581,7 +581,7 @@ namespace ntx20.api.pipe
             yield return "</TABLE>";
 
         }
-        public static IEnumerable<string> ToHtmlStrings(this EvaluationItem eval)
+        public static IEnumerable<string> ToHtmlStrings(this Evaluation eval)
         {
             yield return $"<HTML><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"><TITLE>ASR results {eval.Id}</TITLE>";
             yield return  $"<BR>ID: {eval.Id}<BR>";
@@ -610,8 +610,8 @@ namespace ntx20.api.pipe
                     var spk2 = "<TD align=\"left\"><B>RES:</B></TD>";
                     foreach (var s in eval.Dscore.SpeakerMap)
                     {
-                        spk1 += $"<TD align=\"center\"><B>{s.Key}</B></TD>";
-                        spk2 += $"<TD align=\"center\"><B>{s.Value}</B></TD>";
+                        spk1 += $"<TD align=\"center\"><B>{s.Value}</B></TD>";
+                        spk2 += $"<TD align=\"center\"><B>{s.Key}</B></TD>";
                     }
                     yield return "<TABLE BORDER=1>";
                     yield return $"<TR>{spk1}";
