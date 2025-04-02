@@ -140,9 +140,10 @@ namespace ntx20.command.run.diar
 
 
             using var input = LazyStream.Input(InputUriOption, breaker);
-            using var output = LazyStream.Output(OutputUriOption, "binary", breaker);
+            using var output = LazyStream.Output(OutputUriOption, 
+                ProcessingMode.Mode == "one" ? "application/json" : "application/tar",breaker, true);
 
-            
+
             var configuration = new api.proto.Payload
             {
                 Chunk =

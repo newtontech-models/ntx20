@@ -113,7 +113,8 @@ namespace ntx20.command.util.tran.create
         public async Task<int> RunAsync(CancellationToken breaker)
         {
 
-            using var output = LazyStream.Output(OutputUriOption, "application/json");
+            using var output = LazyStream.Output(OutputUriOption, 
+                ProcessingMode.Mode == "one" ? "application/json" : "application/tar", breaker, true);
             using var input = LazyStream.Input(InputUriOption, breaker);
             using var diar = LazyStream.Input(DiarUriOption, breaker);
 
