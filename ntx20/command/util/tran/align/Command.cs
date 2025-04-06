@@ -22,7 +22,7 @@ namespace ntx20.command.util.tran.align
 {
     class Command : ICommand
     {
-        private static readonly ILogger _logger = Logging.LoggerFactory.CreateLogger("ntx20.command.util.tran.eval.one");
+        private static readonly ILogger _logger = Logging.LoggerFactory.CreateLogger("ntx20.command.util.tran.align");
 
         internal static void Configure(CommandLineApplication command, CommandLineOptions options)
         {
