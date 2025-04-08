@@ -34,6 +34,24 @@ namespace ntx20
 
             return option.Values.Count==0 ? r : option.Values;
         }
+        public static Dictionary<string,string> GetMapOrDefault(this CommandOption option)
+        {
+            var def = option.GetValuesOrDefault();
+            var ret = new Dictionary<string,string>();
+            foreach (var item in def)
+            {
+                var s =item.Split("=", 2);
+                if (s.Length==1)
+                {
+                    ret.Add(s[0], "on");
+                }
+                else
+                {
+                    ret.Add(s[0], s[1]);
+                }
+            }
+            return ret;
+        }
 
         public static void MustSetValue(this CommandOption option,CommandLineApplication command)
         {

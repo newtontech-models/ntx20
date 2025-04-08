@@ -64,4 +64,5 @@ message AlignBlock {
     DiarScore dscore = 4;
     repeated AlignBlock blocks = 5;
     repeated Evaluation items = 6;
+    map<string,string> labels = 7;
   }

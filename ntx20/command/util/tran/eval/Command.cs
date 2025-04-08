@@ -44,6 +44,11 @@ namespace ntx20.command.util.tran.eval
              "set result id",
              CommandOptionType.SingleValue
              );
+            var labelOption = command.Option($"--label <none>",
+             "add labels key=value",
+             CommandOptionType.MultipleValue
+             );
+
 
             var inputUriOption = command.Option(@"-i|--input",
             "input audio url",
@@ -53,6 +58,7 @@ namespace ntx20.command.util.tran.eval
             command.OnExecute(() =>
             {
                 inputUriOption.MustSetValue(command);
+
                 options.Command = new Command(command)
                 {
                     OutputUriOption = outputUriOption.GetValueOrDefault(),
@@ -61,7 +67,7 @@ namespace ntx20.command.util.tran.eval
                     OFormat = oFormatOption.GetValueOrDefault(),
                     KeepBlocks = keepBlocksOption.HasValue(),
                     Id = idOption.GetValueOrDefault() == "auto" ? inputUriOption.Value() : idOption.GetValueOrDefault(),
-
+                    Labels = labelOption.GetMapOrDefault()
                 };
                 return 0;
             });
@@ -72,7 +78,7 @@ namespace ntx20.command.util.tran.eval
         private string IFormat { get; set; }
         private string OFormat { get; set; }
         private string Id { get; set; }
-
+        private Dictionary<string,string> Labels { get; set; }
         private bool KeepBlocks { get; set; }
         private readonly CommandLineApplication _app;
         
@@ -95,8 +101,7 @@ namespace ntx20.command.util.tran.eval
 
             var evaluation = await pipe.Evaluate(KeepBlocks);
             evaluation.Id = Id;
-            
-
+            evaluation.Labels.Add(Labels);
             await (OFormat switch
             {
                 "json" => (new[] { evaluation }).ToAsyncEnumerable().RunWithSink(oStream.AsJsonProtoSink<api.proto.Evaluation>(), autoFlush: true, cancellationToken: breaker),
