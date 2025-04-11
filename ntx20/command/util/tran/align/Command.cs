@@ -167,7 +167,8 @@ namespace ntx20.command.util.tran.align
             async Task<TarEntry> RunTar(Tuple<TarEntry, TarEntry> x)
             {
                 var newname = Path.ChangeExtension(x.Item1.Name, OFormat.Replace(':', '-'));
-                var id = Path.ChangeExtension(newname, "");
+                var id = Path.ChangeExtension(newname, "").TrimEnd('.');
+
                 _logger.LogInformation($"Starting {newname}");
                 var ret = new UstarTarEntry(TarEntryType.RegularFile, newname);
                 ret.DataStream = new MemoryStream();
