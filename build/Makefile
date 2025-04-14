@@ -12,13 +12,15 @@ PROJECT_NAME := ntx20
 
 export PROJECT_VERSION ?= $(shell git rev-parse --abbrev-ref HEAD)-$(PROJECT_GIT_HASH)
 
-publish: nupkg/$(PROJECT_NAME).$(PROJECT_VERSION).nupkg status
-	dotnet nuget push  nupkg/$(PROJECT_NAME).$(PROJECT_VERSION).nupkg --source https://api.nuget.org/v3/index.json --api-key $(NUGET_API_KEY)
+
 
 build: apps.ntx20.cloud/install/$(PROJECT_NAME).tgz status
 
 push: all
 	mc cp apps.ntx20.cloud/install/$(PROJECT_NAME).tgz heinrich/apps.ntx20.cloud/install/$(PROJECT_NAME).tgz
+
+publish: nupkg/$(PROJECT_NAME).$(PROJECT_VERSION).nupkg status
+	dotnet nuget push  nupkg/$(PROJECT_NAME).$(PROJECT_VERSION).nupkg --source https://api.nuget.org/v3/index.json --api-key $(NUGET_API_KEY)
 
 clean:
 	rm -r install
