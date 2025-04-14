@@ -16,3 +16,5 @@ ntx20/Properties/launchSettings.json
 build/apps.ntx20.cloud/
 build/install/
 ntx20/ntx20.csproj.user
+build/.env
+build/nupkg/

@@ -1,12 +1,21 @@
+ifneq (,$(wildcard ./.env))
+    include .env
+    export
+endif
+
 PROJECT_GIT_HASH := $(shell git rev-parse --short HEAD)
 
 COMPANY_NAME := nanotrix
 PROJECT_NAME := ntx20
 
+
+
 export PROJECT_VERSION ?= $(shell git rev-parse --abbrev-ref HEAD)-$(PROJECT_GIT_HASH)
 
+publish: nupkg/$(PROJECT_NAME).$(PROJECT_VERSION).nupkg status
+	dotnet nuget push  nupkg/$(PROJECT_NAME).$(PROJECT_VERSION).nupkg --source https://api.nuget.org/v3/index.json --api-key $(NUGET_API_KEY)
 
-all: apps.ntx20.cloud/install/$(PROJECT_NAME).tgz status
+build: apps.ntx20.cloud/install/$(PROJECT_NAME).tgz status
 
 push: all
 	mc cp apps.ntx20.cloud/install/$(PROJECT_NAME).tgz heinrich/apps.ntx20.cloud/install/$(PROJECT_NAME).tgz
@@ -22,6 +31,9 @@ apps.ntx20.cloud/install/$(PROJECT_NAME)-$(PROJECT_VERSION).tgz: install/$(PROJE
 
 install/$(PROJECT_NAME)-$(PROJECT_VERSION):
 	cd ../$(PROJECT_NAME) && dotnet publish -c Release -o ../build/install/$(PROJECT_NAME)-$(PROJECT_VERSION) -f net9.0
-	
+
+nupkg/$(PROJECT_NAME).$(PROJECT_VERSION).nupkg:
+	cd ../$(PROJECT_NAME) && dotnet pack -c Release -o ../build/nupkg 
+
 status:
 	git status -s
