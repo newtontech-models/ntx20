@@ -371,7 +371,7 @@ namespace ntx20.api.pipe
         {
 
             if (retry == null)
-                retry = new CmdRetryWithBackoff(1);
+                retry = new CmdRetryWithBackoff(0);
 
             using BlockingCollection<Y> output = new BlockingCollection<Y>(2 * (int)parallelism);
             var feed = Parallel.ForEachAsync(source,
@@ -398,7 +398,15 @@ namespace ntx20.api.pipe
                         }
                     }
                 }
-            ).ContinueWith(x => output.CompleteAdding());
+            ).ContinueWith(x => 
+                    {
+                        output.CompleteAdding();
+                        if (!x.IsCompletedSuccessfully) {
+                            throw x.Exception;
+                        }
+                        
+                
+                    }).ConfigureAwait(false);
             
             foreach (var x in output.GetConsumingEnumerable())
             {

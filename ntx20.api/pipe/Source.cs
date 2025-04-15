@@ -337,11 +337,15 @@ namespace ntx20.api.pipe
                         continue;
                     }
                     var spkId = par.Attribute("s")?.Value;
+                    if (int.Parse(spkId) < 0)
+                    {
+                        int a = 7;
+                    }
                     if(spkId!=null && spkId.Trim() == "-1")
                     {
                         continue;
                     }
-                    spkId = spkId == null ? "nobody": speakers[par.Attribute("s").Value];
+                    spkId = spkId == null ? "nobody": speakers.GetValueOrDefault(par.Attribute("s").Value,$"nobody-{par.Attribute("s").Value}");
                     
                     var ret = new proto.Payload() {Track="tran", Chunk = { new proto.Item {Key="ts", D= bstart }, new proto.Item { Key="spk", S= spkId} } };
                     lastSpkId = spkId;
