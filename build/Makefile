@@ -10,7 +10,7 @@ PROJECT_NAME := ntx20
 
 
 
-export PROJECT_VERSION ?= $(shell git rev-parse --abbrev-ref HEAD)-$(PROJECT_GIT_HASH)
+export PROJECT_VERSION ?= $(shell git rev-parse --abbrev-ref HEAD)-sha$(PROJECT_GIT_HASH)
 
 
 
