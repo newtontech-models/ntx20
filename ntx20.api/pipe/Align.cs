@@ -291,7 +291,7 @@ namespace ntx20.api.pipe
             if (score.Count == 0)
             {
                 score.Recall = 0.0f;
-                score.Precission = 0.0f;
+                score.Precision = 0.0f;
                 score.Frate = 0.0f;
             }
             else
@@ -299,19 +299,19 @@ namespace ntx20.api.pipe
                 score.Recall = (float)((double)(score.Hits) / (double)score.Count);
                 if ((score.Hits + score.Insertions) == 0)
                 {
-                    score.Precission = 0.0f;
+                    score.Precision = 0.0f;
                 }
                 else
                 {
-                    score.Precission = (float)((double)(score.Hits) / (double)((score.Hits) + score.Insertions));
+                    score.Precision = (float)((double)(score.Hits) / (double)((score.Hits) + score.Insertions));
                 }
-                if ((score.Recall + score.Precission) == 0)
+                if ((score.Recall + score.Precision) == 0)
                 {
                     score.Frate = 0.0f;
                 }
                 else
                 {
-                    score.Frate = (2 * score.Recall * score.Precission) / (score.Recall + score.Precission);
+                    score.Frate = (2 * score.Recall * score.Precision) / (score.Recall + score.Precision);
                 }
             }
             if (score.ClusterCount == 0)
@@ -536,7 +536,7 @@ namespace ntx20.api.pipe
             {
                 yield return "<BR>Diar: " + string.Format(CultureInfo.InvariantCulture, "R = {0:0.00} P = {1:0.00} F = {2:0.00} C= {3:0.00} [H={4}, D={5}, I={6}, N={7}, M={8}, C={9}]",
                     100 * block.Dscore.Recall,
-                    100 * block.Dscore.Precission,
+                    100 * block.Dscore.Precision,
                     100 * block.Dscore.Frate,
                     100 * block.Dscore.ClusterPurity,
                     block.Dscore.Hits, block.Dscore.Deletions, block.Dscore.Insertions, block.Dscore.Count, block.Dscore.ClusterMatch, block.Dscore.ClusterCount);
@@ -599,7 +599,7 @@ namespace ntx20.api.pipe
             {
                 yield return  "<BR>Diar: " + string.Format(CultureInfo.InvariantCulture, "R = {0:0.00} P = {1:0.00} F = {2:0.00} C= {3:0.00} [H={4}, D={5}, I={6}, N={7}, M={8}, C={9}]",
                     100 * eval.Dscore.Recall,
-                    100 * eval.Dscore.Precission,
+                    100 * eval.Dscore.Precision,
                     100 * eval.Dscore.Frate,
                     100 * eval.Dscore.ClusterPurity,
                     eval.Dscore.Hits, eval.Dscore.Deletions, eval.Dscore.Insertions, eval.Dscore.Count, eval.Dscore.ClusterMatch, eval.Dscore.ClusterCount);

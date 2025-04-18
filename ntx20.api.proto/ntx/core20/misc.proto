@@ -20,7 +20,7 @@ message DiarScore {
     uint32 insertions = 4;
     uint32 deletions = 5;
     float recall = 6;
-    float precission = 7;
+    float precision = 7;
     float frate = 8;
     uint32 clusterMatch = 10;
     uint32 clusterCount = 11;
