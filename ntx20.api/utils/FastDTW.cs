@@ -253,7 +253,7 @@ namespace ntx.api.utils
 
                 for (int z = 0; z < i.Sub; z++)
                 {
-                    bool split = reference[refpos].Text.StartsWith("#") ^ result[respos].Text.StartsWith("#");
+                    bool split = reference[refpos].Text.StartsWith("##") ^ result[respos].Text.StartsWith("##");
                     split = split & !reference[refpos].Text.StartsWith("#!") & !result[respos].Text.StartsWith("#!");
                     if (split)
                     {
@@ -270,7 +270,7 @@ namespace ntx.api.utils
 
                 if (respos < result.Count && refpos < reference.Count)
                 {
-                    bool split = reference[refpos].Text.StartsWith("#") ^ result[respos].Text.StartsWith("#");
+                    bool split = reference[refpos].Text.StartsWith("##") ^ result[respos].Text.StartsWith("##");
                     split = split & !reference[refpos].Text.StartsWith("#!") & !result[respos].Text.StartsWith("#!");
                     if (split)
                     {
@@ -361,11 +361,11 @@ namespace ntx.api.utils
             for (int i = 0; i < reference.Count; i++)
             {
                 string val = ignorecase ? reference[i].Text.ToLowerInvariant() : reference[i].Text;
-                if(val.StartsWith("#") && !val.StartsWith("#!") && val.Length > 1)
+              /*  if(val.StartsWith("#") && !val.StartsWith("#!") && val.Length > 1)
                 {
                     val = val.Substring(0, 2);
                 }
-               
+               */
                 lastBlock = reference[i].Block;
                 if (refindex.ContainsKey(val))
                     refindex[val].Add(new Tuple<int, int>(i, lastBlock));
@@ -380,11 +380,12 @@ namespace ntx.api.utils
 
                 string val = resInd == result.Count ? "$END" : ignorecase ? result[resInd].Text.ToLowerInvariant() : result[resInd].Text;
                 
+               /*
                 if (val.StartsWith("#") && !val.StartsWith("#!") && val.Length > 1)
                 {
                     val = val.Substring(0, 2);
                 }
-                
+                */
 
                 if (!refindex.ContainsKey(val))
                     continue;

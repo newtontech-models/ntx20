@@ -36,7 +36,7 @@ namespace ntx20.api.pipe
                     cspk= match.Groups[1].Value;
                     line = spk.Replace(line, "");
                 }
-                if (line.Length == 0 || line.StartsWith("#"))
+                if (line.Length == 0 || line.StartsWith("##"))
                     continue;
                 var ret = new proto.Payload { Track = "tran", Chunk = { new Item { Key = "spk", S = cspk } } };
                 foreach (var s in split.Split(line))
