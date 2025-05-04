@@ -293,7 +293,7 @@ namespace ntx20.api.pipe
                     if (entry.EntryType is not TarEntryType.RegularFile)
                         continue;
 
-                    var ret = new UstarTarEntry(TarEntryType.RegularFile, entry.Name);
+                    var ret = new PaxTarEntry(TarEntryType.RegularFile, entry.Name);
                     ret.DataStream = new MemoryStream();
                     await entry.DataStream.CopyToAsync(ret.DataStream);
                     ret.DataStream.Seek(0, SeekOrigin.Begin);
