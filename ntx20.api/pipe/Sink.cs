@@ -26,9 +26,9 @@ namespace ntx20.api.pipe
 
 
 
-        public static IAsyncSink<TarEntry> AsTarSink(this Stream stream)
+        public static IAsyncSink<TarEntry> AsTarSink(this Stream stream, TarEntryFormat format=TarEntryFormat.Pax)
         {
-            return new TarSinkWriter(stream);
+            return new TarSinkWriter(stream,format);
         }
 
         public static IAsyncSink<T> AsBinaryProtoSink<T>(this Stream stream) where T : Google.Protobuf.IMessage, new()

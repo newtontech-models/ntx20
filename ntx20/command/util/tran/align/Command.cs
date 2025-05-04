@@ -170,7 +170,7 @@ namespace ntx20.command.util.tran.align
                 var id = Path.ChangeExtension(newname, "").TrimEnd('.');
 
                 _logger.LogInformation($"Starting {newname}");
-                var ret = new UstarTarEntry(TarEntryType.RegularFile, newname);
+                var ret = new PaxTarEntry(TarEntryType.RegularFile, newname);
                 ret.DataStream = new MemoryStream();
                 await DoJob(x.Item1.DataStream, x.Item2.DataStream, ret.DataStream, 
                     IFormatGlobal.ForPath(x.Item1.Name),
