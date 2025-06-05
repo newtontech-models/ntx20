@@ -13,7 +13,6 @@ using ntx20.api.utils;
 using System.IO;
 using static Grpc.Core.Metadata;
 using System.Formats.Tar;
-using Azure.Core;
 namespace ntx20.command.run.diar
 {
 

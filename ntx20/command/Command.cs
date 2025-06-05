@@ -16,7 +16,8 @@ namespace ntx20.command
             }
             command.Command("run", (c) => run.Command.Configure(c, options), options.TheService != null);
             command.Command("util", (c) => util.Command.Configure(c, options));
-            
+            command.Command("ws", (c) => ws.Command.Configure(c, options));
+
 
             command.OnExecute(() =>
             {

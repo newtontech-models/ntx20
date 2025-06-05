@@ -1,5 +1,4 @@
 ﻿using Grpc.Core;
-using Microsoft.CognitiveServices.Speech;
 using Microsoft.Extensions.CommandLineUtils;
 using ntx20.api.proto;
 using ntx20.command;
@@ -97,7 +96,6 @@ namespace ntx20
         public Grpc.Net.Client.GrpcChannel Channel { get; set; }
         public Func<AsyncDuplexStreamingCall<api.proto.Payload,api.proto.Payload>> CreateStreaming { get; set; }
         
-        public Func<SpeechConfig> CreateConfig { get; set; }
 
         public ntx20.api.proto.ServiceVersion TheService { get; set; }
         public ntx20.api.proto.ServiceVersion TheBatchService { get; set; }

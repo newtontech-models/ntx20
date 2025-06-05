@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Formats.Tar;
 using System.IO;
 using System.Linq;
+using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -142,6 +143,27 @@ namespace ntx20.api.pipe
             }
         }
 
+        public static async IAsyncEnumerable<api.proto.Payload> AsRawAudioSource(this WebSocket socket, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var buffer = new byte[1024 * 16];
+
+            var result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+            while (!result.CloseStatus.HasValue)
+            {
+                
+                var ret =
+                new proto.Payload { Track="aud"};
+                ret.Chunk.Add(
+                    new proto.Item
+                    {
+                        B = Google.Protobuf.ByteString.CopyFrom(buffer, 0, result.Count)
+                    }
+                );
+                yield return ret;
+
+                result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+            }
+        }
 
         public static async IAsyncEnumerable<api.proto.Payload> AsRawAudioSource(this Stream stream, int chunkSize = 4096, long limitBytes = 0, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {

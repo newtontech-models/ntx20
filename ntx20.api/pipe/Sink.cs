@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Formats.Tar;
 using System.IO;
 using System.Linq;
+using System.Net.WebSockets;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -58,6 +59,11 @@ namespace ntx20.api.pipe
         public static IAsyncSink<api.proto.Payload> ConsolePayloadSink(string track)
         {
             return new ConsoleWriter(track);
+        }
+
+        public static IAsyncSink<api.proto.Payload> AsConsolePayloadSink(this WebSocket socket, string track)
+        {
+            return new WsConsoleWriter(socket, track);
         }
 
 

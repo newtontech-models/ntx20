@@ -1,0 +1,108 @@
+﻿
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+    <title>Browser mic transcribe</title>
+    <style>
+        body {
+            background: #000;
+            color: #eee;
+            font: 20px sans-serif;
+        }
+
+        a {
+            color: #fd0
+        }
+
+        #lookahead {
+            color: #999
+        }
+
+        .blinker {
+            animation-name: blinker;
+            animation-iteration-count: infinite;
+            animation-timing-function: cubic-bezier(1,0,0,1);
+            animation-duration: 1s;
+            //Basic styling display: inline-block;
+            width: 8px;
+            height: 100px;
+            margin-left: 10px;
+            border-radius: 3px;
+            box-shadow: 0 0 10px rgba(white,.3);
+        }
+
+        @keyframes blinker {
+            from {
+                opacity: 1.0;
+            }
+
+            to {
+                opacity: 0.0;
+            }
+        }
+
+    </style>
+</head>
+<body>
+    <div id="panel">
+        <p>
+            <span id="text"></span>
+            <span class="box" id="lookahead">waiting for connection</span>
+            <span class="blinker" id="cursor">_</span>
+        </p>
+    </div>
+    <script>
+    let ws = new WebSocket("ws://localhost:%PORT%/audio");
+    ws.binaryType = "arraybuffer";
+        ws.onmessage = (event) => {
+            const parts = event.data.split(":", 2);
+            switch (parts[0]) {
+                case "c":
+                    if (parts[1] == "p") {
+                        document.getElementById("text").removeAttribute("id");
+                        document.getElementById("lookahead").removeAttribute("id");
+                        document.getElementById("cursor").remove();
+
+                        var para = document.createElement("p");
+                        var txt = document.createElement("span");
+                        txt.setAttribute("id", "text");
+                        var la = document.createElement("span");
+                        la.setAttribute("id", "lookahead");
+                        var cur = document.createElement("span");
+                        cur.setAttribute("id", "cursor");
+                        cur.setAttribute("class", "blinker");
+                        cur.textContent = "_";
+                        para.appendChild(txt);
+                        para.appendChild(la);
+                        para.appendChild(cur);
+
+                        para.appendChild
+                        document.getElementById("panel").appendChild(para);
+                    } else {
+                        document.getElementById("lookahead").textContent=""
+                    }
+                    break;
+                case "l":
+                    document.getElementById("lookahead").textContent = parts[1];
+                    break;
+                case "f":
+                    document.getElementById("text").textContent += parts[1];
+                    document.getElementById("lookahead").textContent = "";
+                    break;
+            }
+    };
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        const options = { mimeType: 'audio/webm; codecs=opus' };
+        const recorder = new MediaRecorder(stream, options);
+
+        recorder.ondataavailable = e => {
+            if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) {
+                ws.send(e.data);
+            }
+        };
+        recorder.start(100); // send every 100ms
+    });
+    </script>
+</body>
+</html>
