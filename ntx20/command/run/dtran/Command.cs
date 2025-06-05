@@ -191,7 +191,7 @@ namespace ntx20.command.run.dtran
                         var line = await reader.ReadLineAsync();
                         if (line == null)
                             break;
-                        if (line.Trim().StartsWith("#"))
+                        if (line.Trim().StartsWith("##"))
                         {
                             continue;
                         }

@@ -188,7 +188,7 @@ namespace ntx20.command.run.diar
             {
                 var newname = x.Name + "." + OFormat.Replace(':', '-');
                 _logger.LogInformation($"Starting {x.Name}");
-                var ret = new UstarTarEntry(TarEntryType.RegularFile, newname);
+                var ret = new PaxTarEntry(TarEntryType.RegularFile, newname);
                 ret.DataStream = new MemoryStream();
                 await DoJob(x.DataStream, ret.DataStream);
                 ret.DataStream.Seek(0, SeekOrigin.Begin);

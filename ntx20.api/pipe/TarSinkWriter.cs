@@ -14,10 +14,11 @@ namespace ntx20.api.pipe
         TarWriter tarWriter = null;
         Stream stream;
         readonly Stream streamResolver;
-        
-        public TarSinkWriter(Stream streamResolver)
+        TarEntryFormat format;
+        public TarSinkWriter(Stream streamResolver, TarEntryFormat format)
         {
             this.streamResolver = streamResolver;
+            this.format = format;
         }
 
         public async Task FlushAsync(CancellationToken cancellationToken = default)
@@ -33,7 +34,7 @@ namespace ntx20.api.pipe
         {
             if (tarWriter == null)
             {
-                tarWriter = new TarWriter(streamResolver, TarEntryFormat.Ustar,leaveOpen: true);
+                tarWriter = new TarWriter(streamResolver, this.format,leaveOpen: true);
             }
 
             await tarWriter.WriteEntryAsync(entry, cancellationToken);

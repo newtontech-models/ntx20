@@ -174,7 +174,7 @@ namespace ntx20.command.util.tran.create
             {
                 var newname = Path.ChangeExtension(x.Name, OFormat.Replace(':', '-'));
                 _logger.LogInformation($"Starting {newname}");
-                var ret = new UstarTarEntry(TarEntryType.RegularFile, newname);
+                var ret = new PaxTarEntry(TarEntryType.RegularFile, newname);
                 ret.DataStream = new MemoryStream();
                 await DoJob(null, x.DataStream,ret.DataStream, Path.GetFileNameWithoutExtension(x.Name));
                 ret.DataStream.Seek(0, SeekOrigin.Begin);
@@ -185,7 +185,7 @@ namespace ntx20.command.util.tran.create
             {
                 var newname = Path.ChangeExtension(x.Name, OFormat.Replace(':', '-'));
                 _logger.LogInformation($"Starting {newname}");
-                var ret = new UstarTarEntry(TarEntryType.RegularFile, newname);
+                var ret = new PaxTarEntry(TarEntryType.RegularFile, newname);
                 ret.DataStream = new MemoryStream();
                 await DoJob(x.DataStream, null, ret.DataStream, Path.GetFileNameWithoutExtension(x.Name));
                 ret.DataStream.Seek(0, SeekOrigin.Begin);
@@ -197,7 +197,7 @@ namespace ntx20.command.util.tran.create
             {
                 var newname = Path.ChangeExtension(x.Item1.Name, OFormat.Replace(':', '-'));
                 _logger.LogInformation($"Starting {newname}");
-                var ret = new UstarTarEntry(TarEntryType.RegularFile, newname);
+                var ret = new PaxTarEntry(TarEntryType.RegularFile, newname);
                 ret.DataStream = new MemoryStream();
                 await DoJob(x.Item1.DataStream,x.Item2.DataStream, ret.DataStream, 
                     Path.GetFileNameWithoutExtension(x.Item1.Name));
