@@ -53,7 +53,7 @@
         </p>
     </div>
     <script>
-    let ws = new WebSocket("ws://localhost:%PORT%/audio");
+    let ws = new WebSocket("%HOST%/audio");
     ws.binaryType = "arraybuffer";
         ws.onmessage = (event) => {
             const parts = event.data.split(":", 2);

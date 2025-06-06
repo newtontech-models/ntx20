@@ -23,4 +23,6 @@
 * Get help: `ntx20 run atran-us-openlex@https://usr:psw@yourcluster.com -h`
 * Set env variable cluster1=https://usr:psw@yourcluster.com for storing connection string and then call: `ntx20 run atran-us-openlex@cluster1`
 * Environment for ntx20 process can be set in .env file in the root folder of ntx20 as key=value per line.
+* Run websocket proxy live dictation with cz-atran-dictate model:  `ntx20 ws atran-cz-dictate@https://usr:psw@yourcluster.com` and open http://localhost:8080 
+    
 

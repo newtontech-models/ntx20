@@ -33,6 +33,16 @@ namespace ntx20.command.ws.atran
             if (options.TheService != null)
                 command.FullName = $"Application: {options.TheService.Service}:{options.TheService.Version}";
 
+            var urlOption = command.Option(@"-l|--listen <http://127.0.0.1:8080>",
+            "listen url",
+                CommandOptionType.MultipleValue
+            );
+
+            var hostOption = command.Option(@"-h|--host <ws://127.0.0.1:8080>",
+           "host",
+               CommandOptionType.SingleValue
+           );
+
             var oFormat = command.Option($"-w|--writer <console:pnc>",
                 "write output as console:v2t|console:ppc|console:pnc",
                 CommandOptionType.SingleValue
@@ -61,6 +71,10 @@ namespace ntx20.command.ws.atran
                     OFormat = oFormat.GetValueOrDefault(),
                     DecoderFeatures = decoderFeatures.GetValueOrDefault(),
                     LexiconUrlOption = lexiconOption.GetValueOrDefault(),
+                    Urls = urlOption.Values.Count == 0 ? new List<string> {
+                        urlOption.GetValueOrDefault()
+                    } : urlOption.Values,
+                    Host = hostOption.GetValueOrDefault()
                 };
 
                 return 0;
@@ -68,6 +82,9 @@ namespace ntx20.command.ws.atran
         }
         private readonly CommandLineApplication _app;
         private readonly CommandLineOptions _opts;
+
+        private List<string> Urls;
+        private string Host;
         private string AudioFormatOption = "auto:0";
         private string ChannelOption = "downmix";
         private string OFormat { get; set; }
@@ -93,13 +110,13 @@ namespace ntx20.command.ws.atran
                     }
             };
 
-            int port = 5050;
+            
             var page = new StreamReader(
                 typeof(Program).GetTypeInfo().Assembly.GetManifestResourceStream("ntx20.command.ws.atran.atran.html"),
                 System.Text.Encoding.UTF8
-                ).ReadToEnd().Replace("%PORT%", $"{port}");
+                ).ReadToEnd().Replace("%HOST%", $"{Host}");
             var builder = WebApplication.CreateBuilder();
-            builder.WebHost.UseUrls("http://localhost:" + port);
+            builder.WebHost.UseUrls(Urls.ToArray());
             var app = builder.Build();
             app.UseWebSockets();
 
@@ -120,20 +137,23 @@ namespace ntx20.command.ws.atran
                 using var call = _opts.CreateStreaming();
                 var configured = await call.Configure(configuration, breaker);
                 var accepts = configured.Chunk.First(x => x.Key == "accepts").Tags.ToArray();
-
+                _logger.LogInformation($"Connected to grpc service");
                 var pipe = ws.AsRawAudioSource(breaker)
                             .ViaTaskRunner(call, accepts, false);
 
                 await (OFormat switch
                 {
-                    "console:v2t" => pipe.RunWithSink(ws.AsConsolePayloadSink("pnc")),
+                    "console:v2t" => pipe.RunWithSink(ws.AsConsolePayloadSink("v2t")),
                     "console:ppc" => pipe.RunWithSink(ws.AsConsolePayloadSink("ppc")),
                     "console:pnc" => pipe.RunWithSink(ws.AsConsolePayloadSink("pnc")),
                     _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
                 });
+                _logger.LogInformation($"Disconnected from grpc service");
             });
             await app.StartAsync();
+            _logger.LogInformation($"Listening on {string.Join("", Urls)}");
             await app.WaitForShutdownAsync(breaker);
+            _logger.LogInformation($"Completed");
             return 0;
         }
 
