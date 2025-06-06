@@ -7,7 +7,8 @@
  
  ### Install and update
  1. ``dotnet tool search --prerelease ntx20``
- 2. ``dotnet tool install --prerelease ntx20 --tool-path $path`` 
+ 2. `dotnet tool install --prerelease ntx20 --tool-path $path`
+ 2. or `dotnet tool install --prerelease ntx20 -g`
   
 ### ntx20 app extension:
  #### Windows

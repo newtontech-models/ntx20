@@ -80,17 +80,15 @@ namespace ntx20
             }
             catch { }
 
-
-            var config_path = Environment.GetEnvironmentVariable("NTX20_CONFIG_PATH") ?? Path.GetDirectoryName(typeof(Program).GetTypeInfo().Assembly.Location);
-            
-            var system = "linux-x64";
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                system = "windows-x64";
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                system = "osx-x64";
-            
-            SetEnv(Path.Combine(config_path, ".env"));
-            SetEnv(Path.Combine(config_path, $"{system}.env"));
+            var load_env = new string[] {
+            Path.GetDirectoryName(typeof(Program).GetTypeInfo().Assembly.Location),
+            Path.GetDirectoryName(Environment.ProcessPath),
+            Environment.GetEnvironmentVariable("NTX20_CONFIG_PATH") ?? Environment.CurrentDirectory
+            };
+            foreach (var config_path in load_env)
+            {
+                SetEnv(Path.Combine(config_path, ".env"));
+            }
             
 
 
