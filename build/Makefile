@@ -8,9 +8,9 @@ PROJECT_GIT_HASH := $(shell git rev-parse --short HEAD)
 COMPANY_NAME := nanotrix
 PROJECT_NAME := ntx20
 
-PROJECT_TAG :=$(shell git tag)
-
-export PROJECT_VERSION ?= $(PROJECT_TAG)-$(shell git rev-list $(PROJECT_TAG).. --count)x$(PROJECT_GIT_HASH) 
+PROJECT_GIT_TAG :=$(shell git tag)
+PROJECT_GIT_COMM=$(shell git rev-list $(PROJECT_GIT_TAG).. --count)
+export PROJECT_VERSION ?= $(PROJECT_GIT_TAG)-c$(PROJECT_GIT_COMM)x$(PROJECT_GIT_HASH)
 
 
 
