@@ -16,7 +16,7 @@ export PROJECT_VERSION ?= $(shell git tag --points-at HEAD)-sha$(PROJECT_GIT_HAS
 
 build: apps.ntx20.cloud/install/$(PROJECT_NAME).tgz status
 
-push: all
+push: build
 	mc cp apps.ntx20.cloud/install/$(PROJECT_NAME).tgz heinrich/apps.ntx20.cloud/install/$(PROJECT_NAME).tgz
 
 publish: nupkg/$(PROJECT_NAME).$(PROJECT_VERSION).nupkg status
