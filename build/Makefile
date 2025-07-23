@@ -8,16 +8,17 @@ PROJECT_GIT_HASH := $(shell git rev-parse --short HEAD)
 COMPANY_NAME := nanotrix
 PROJECT_NAME := ntx20
 
+PROJECT_TAG :=$(shell git tag)
+
+export PROJECT_VERSION ?= $(PROJECT_TAG)-$(shell git rev-list $(PROJECT_TAG).. --count)x$(PROJECT_GIT_HASH) 
 
 
-export PROJECT_VERSION ?= $(shell git tag --points-at HEAD)-sha$(PROJECT_GIT_HASH)
 
-
-
-build: apps.ntx20.cloud/install/$(PROJECT_NAME).tgz status
+build: apps.ntx20.cloud/install/$(PROJECT_NAME)-$(PROJECT_VERSION).tgz apps.ntx20.cloud/install/$(PROJECT_NAME).tgz status
 
 push: build
 	mc cp apps.ntx20.cloud/install/$(PROJECT_NAME).tgz heinrich/apps.ntx20.cloud/install/$(PROJECT_NAME).tgz
+	mc cp apps.ntx20.cloud/install/$(PROJECT_NAME)-$(PROJECT_VERSION).tgz heinrich/apps.ntx20.cloud/install/$(PROJECT_NAME)-$(PROJECT_VERSION).tgz
 
 publish: nupkg/$(PROJECT_NAME).$(PROJECT_VERSION).nupkg status
 	dotnet nuget push  nupkg/$(PROJECT_NAME).$(PROJECT_VERSION).nupkg --source https://api.nuget.org/v3/index.json --api-key $(NUGET_API_KEY)
