@@ -262,9 +262,7 @@ namespace ntx20.command.app
                     var id = Path.Combine(path, entry.Name);
                     Directory.CreateDirectory(Path.GetDirectoryName(id));
                     _logger.LogInformation("Unpacking: {0}", id);
-                    using var dest = new api.io.TempFileStream(id);
-                    await entry.DataStream.CopyToAsync(dest);
-                    dest.Close();
+                    entry.ExtractToFile(id, overwrite: false);
                 }
                 
             }
