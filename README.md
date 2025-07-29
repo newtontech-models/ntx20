@@ -5,11 +5,15 @@
 ### Prerequisities
  1. Get [ASP.NET Runtime 9.0.x](https://dotnet.microsoft.com/download/dotnet/9.0)
  
- ### Install and update
- 1. ``dotnet tool search --prerelease ntx20``
+ ### Install
+ 1. `dotnet tool search --prerelease ntx20`
  2. `dotnet tool install --prerelease ntx20 --tool-path $path`
  2. or `dotnet tool install --prerelease ntx20 -g`
   
+### Update
+1. `dotnet tool update --prerelease --tool-path $path ntx20`
+2. or  `dotnet tool update --prerelease ntx20 -g`
+
 ### ntx20 app extension:
  #### Windows
 - [CoreUtils](http://gnuwin32.sourceforge.net/packages/coreutils.htm) 
