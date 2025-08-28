@@ -190,9 +190,9 @@ namespace ntx20.command.run.dtran
                     "text:v2t" => pipe.ToText("v2t").RunWithSink(localOutput.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
                     "text:tpc" => pipe.ToText("tpc").RunWithSink(localOutput.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
                     "ntext:v2t" => pipe.ToNText("v2t").RunWithSink(localOutput.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
-                    "ntext:tpc" => pipe.ToNText("pnc").RunWithSink(localOutput.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
+                    "ntext:tpc" => pipe.ToNText("tpc").RunWithSink(localOutput.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
                     "console:v2t" => pipe.RunWithSink(Sink.ConsolePayloadSink("v2t"), autoFlush: Flush, cancellationToken: breaker),
-                    "console:tpc" => pipe.RunWithSink(Sink.ConsolePayloadSink("ppc"), autoFlush: Flush, cancellationToken: breaker),
+                    "console:tpc" => pipe.RunWithSink(Sink.ConsolePayloadSink("tpc"), autoFlush: Flush, cancellationToken: breaker),
                     _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
                 });
 
