@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using ntx20.api.utils;
 using System.IO;
 using System.Collections.Concurrent;
+using System.Formats.Tar;
 
 namespace ntx20.command.run.dtran
 {
@@ -19,12 +20,12 @@ namespace ntx20.command.run.dtran
     {
         private static readonly ILogger _logger = Logging.LoggerFactory.CreateLogger("ntx20.command.run.dtran");
 
-        
+
         internal static void Configure(CommandLineApplication command, CommandLineOptions options, bool dry = false)
         {
-            command.Description = $"audio to text and diarization";
+            command.Description = $"converts audio input to text";
             command.HelpOption("-h|--help");
-            if(options.TheService!=null)
+            if (options.TheService != null)
                 command.FullName = $"Application: {options.TheService.Service}:{options.TheService.Version}";
 
             var inputUriOption = command.Option(@"-i|--input",
@@ -36,10 +37,6 @@ namespace ntx20.command.run.dtran
                  CommandOptionType.SingleValue
                  );
 
-            var processingMode = command.Option("-m|--mode <one>",
-                 "processing mode one|batch:xx where xx is paralelism ",
-                 CommandOptionType.SingleValue
-                 );
 
             var iFormat = command.Option($"-r|--reader <raw:4096>",
                 "read input as raw:$chunkSizeBytes|proto|json",
@@ -50,26 +47,14 @@ namespace ntx20.command.run.dtran
                 "write output as json|proto|simple|text:v2t|text:tpc|ntext:v2t|ntext:tpc|console:v2t|console:tpc",
                 CommandOptionType.SingleValue
                 );
-            var label=command.Option($"-l| --label",
-                "add client metadata to every chunk --label name:value",
-                CommandOptionType.MultipleValue
-                );
-            var wrap = command.Option("--wrap",
-                "wrap stream with open and close message",
-                CommandOptionType.NoValue
-                );
             var flush = command.Option("-f|--flush",
                 "enable flush on every write",
                 CommandOptionType.NoValue
                 );
-            var overwrite = command.Option("--overwrite",
-                "overwrite existing output",
-                CommandOptionType.NoValue
-                );
-            var nomkdir = command.Option("--nodirs",
-                "dont create output path if not exist",
-                CommandOptionType.NoValue
-                );
+            var processingMode = command.Option("-m|--mode <one>",
+                 "processing mode one|tar:xx where xx is paralelism ",
+                 CommandOptionType.SingleValue
+                 );
             var retryOption = command.Option("--retry <10:1000:1.5>"
               , "retry with exponencial backoff (batch mode only) count:initDelayMs:multiplier"
              , CommandOptionType.SingleValue);
@@ -80,7 +65,7 @@ namespace ntx20.command.run.dtran
                  $"input format auto:$probeSizeBytes|pcm:$pcmFormat:$sampleRate:$channelLayout",
                 CommandOptionType.SingleValue
                 );
-            
+
 
             var channelOption = command.Option($"--{Const.i_audio_channel} <downmix>"
                , $"choose audio channel {string.Join("|", AudioDecoder.channelSelects)}"
@@ -113,7 +98,7 @@ namespace ntx20.command.run.dtran
             command.OnExecute(() =>
             {
 
-                
+
                 inputUriOption.MustSetValue(command);
 
                 options.Command = new Command(command, options)
@@ -129,13 +114,8 @@ namespace ntx20.command.run.dtran
                     Pipe = pipe.HasValue(),
                     DecoderFeatures = decoderFeatures.GetValueOrDefault(),
                     LexiconUrlOption = lexiconOption.GetValueOrDefault(),
-                    ProcessingMode = processingMode.GetValueOrDefault().StartsWith("batch:") ? "batch" : processingMode.GetValueOrDefault(),
-                    Parallelism = processingMode.GetValueOrDefault().StartsWith("batch:") ? uint.Parse(processingMode.GetValueOrDefault()[6..]) : 1,
+                    ProcessingMode = CmdProcessingMode.Parse(processingMode.GetValueOrDefault()),
                     Retry = CmdRetryWithBackoff.ParseFromCmd(retryOption.GetValueOrDefault()),
-                    DontMakeDirs = nomkdir.HasValue(),
-                    OverWrite = overwrite.HasValue(),
-                    Wrap = wrap.HasValue(),
-                    Labels = label.HasValue() ? label.Values.ToDictionary(x=>  x.Split(':', 2)[0], x=> x.Split(':', 2)[1]) : null,
 
                 };
 
@@ -155,17 +135,11 @@ namespace ntx20.command.run.dtran
         private string LexiconUrlOption { get; set; }
         private string DecoderFeatures { get; set; }
 
-        private string ProcessingMode { get; set; }
-        private uint Parallelism { get; set; }
         private bool Pipe { get; set; }
-        
-        private bool DontMakeDirs { get; set; }
-        private bool OverWrite { get; set; }
+
         private bool Flush { get; set; }
 
-        private bool Wrap { get; set; }
-
-        private Dictionary<string,string> Labels { get; set; }
+        private CmdProcessingMode ProcessingMode { get; set; }
         private CmdRetryWithBackoff Retry { get; set; }
         public Command(CommandLineApplication app, CommandLineOptions opts)
         {
@@ -174,163 +148,84 @@ namespace ntx20.command.run.dtran
         }
         public async Task<int> RunAsync(CancellationToken breaker)
         {
-            if(ProcessingMode == "one")
-                return await RunOneAsync(this, breaker);
-            if (ProcessingMode != "batch")
-                throw new NotImplementedException($"mode: {ProcessingMode}");
-
-            //TODO redesign this pyramidal ubershit
-
-            using BlockingCollection<string> bc = Parallelism== 0 ? new BlockingCollection<string>() : new BlockingCollection<string>(2*(int)Parallelism);
-            using var writer = Task.Run(async () =>
-            {
-                using (var reader = new StreamReader(LazyStream.Input(InputUriOption, breaker)))
-                {
-                    while (true)
-                    {
-                        var line = await reader.ReadLineAsync();
-                        if (line == null)
-                            break;
-                        if (line.Trim().StartsWith("##"))
-                        {
-                            continue;
-                        }
-                        if (line.Trim().Length == 0)
-                            continue;
-                        bc.Add(line.Trim());
-                    }
-                }
-                bc.CompleteAdding();
-            });
-
-            Task[] readers = new Task[Parallelism];
-            
-            long total_count = 0;
-            for(var i=0;i<Parallelism; i++)
-            {
-                _logger.LogInformation($"Starting worker {_opts.TheService.Service}:{_opts.TheService.Version}/{i}");
-                readers[i] = Task.Run(async() =>
-                {
-                    long z = i;
-                    long count = 0;
-                    foreach (var task_command in bc.GetConsumingEnumerable()){
-                        var app = new CommandLineApplication();
-                        var opts = new CommandLineOptions();
-                        Configure(app, opts, true);
-                        var args = CommandLineOptions.SplitAsCmdArguments(task_command);
-                        app.Execute(args);
-                        var task_params = opts.Command as Command;
-                        var _retry = Retry.Clone();
-                        while (true)
-                        {
-                            try
-                            {
-                                await RunOneAsync(task_params, breaker);
-                                break;
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogWarning($"Failed: {ex.Message} => {task_params.InputUriOption}");
-                                if (breaker.IsCancellationRequested)
-                                    throw;
-                                if (await _retry.Next(breaker))
-                                    throw;
-                                _logger.LogWarning($"Retry: #{_retry.Retry}/{_retry.MaxRetries} => {task_params.InputUriOption}");
-                            }
-                        }
-                        Interlocked.Increment(ref total_count);
-                        count++;
-                        _logger.LogInformation($"Completed: {z}/{count}/{total_count} => {task_params.InputUriOption}");
-                    }
-                    _logger.LogInformation($"Finishing worker {_opts.TheService.Service}:{_opts.TheService.Version}/{z}");
-                });
-            }
-
-            await Task.WhenAll(readers);
-
-            return readers.Where(x => x.IsFaulted).Count();
-
-        }
-        public async Task<int> RunOneAsync(Command param,  CancellationToken breaker)
-        {
-
-            
-            
-            using var call = _opts.CreateStreaming();
-
-            
-            bool isFile = param.OutputUriOption != "-";
-
-            using var input = LazyStream.Input(param.InputUriOption, breaker);
-            if(isFile && File.Exists(param.OutputUriOption))
-            {
-                if (!OverWrite)
-                {
-                    _logger.LogWarning($"Allready exists, skipping {param.OutputUriOption}");
-                    return 0;
-                }
-
-                
-            }
-            using var output = LazyStream.Output(param.OutputUriOption, "binary", breaker,!DontMakeDirs);
+            using var input = LazyStream.Input(InputUriOption, breaker);
+            using var output = LazyStream.Output(OutputUriOption,
+                ProcessingMode.Mode == "one" ? "application/json" : "application/tar",
+                breaker, true);
 
             var configuration = new api.proto.Payload
             {
                 Chunk =
                     {
-                        new api.proto.Item{ Key = Const.i_audio_format, S = param.AudioFormatOption, Type = "s" },
-                        new api.proto.Item { Key = Const.i_audio_channel, S = param.ChannelOption, Type = "s" },
-                        new api.proto.Item { Key = Const.features, S = param.DecoderFeatures, Type = "s" },
-                        CmdUtils.LexiconFromUrl(param.LexiconUrlOption)
+                        new api.proto.Item{ Key = Const.i_audio_format, S = AudioFormatOption, Type = "s" },
+                        new api.proto.Item { Key = Const.i_audio_channel, S = ChannelOption, Type = "s" },
+                        new api.proto.Item { Key = Const.features, S = DecoderFeatures, Type = "s" },
+                        CmdUtils.LexiconFromUrl(LexiconUrlOption)
                     }
             };
 
 
 
-
-            var configured = await call.Configure(configuration, breaker);
-            var accepts = configured.Chunk.First(x => x.Key == "accepts").Tags.ToArray();
-
-            if(param._opts.TheService!=null)
-                _logger.LogInformation($"Task {param._opts.TheService.Service}:{param._opts.TheService.Version} configured");
-
-            var pipe = (param.IFormat switch
+            async Task DoJob(Stream localInput, Stream localOutput)
             {
-                "raw" => input.AsRawAudioSource(chunkSize: (int)ChunkSizeBytes, cancellationToken: breaker),
-                "proto" => input.AsProtoBinarySource<api.proto.Payload>(breaker),
-                "json" => input.AsProtoJsonSource<api.proto.Payload>(breaker),
-                _ => throw new NotImplementedException($"unsuported input format {param.IFormat}"),
-            });
+                using var call = _opts.CreateStreaming();
+                var configured = await call.Configure(configuration, breaker);
+                var accepts = configured.Chunk.First(x => x.Key == "accepts").Tags.ToArray();
 
+                var pipe = (IFormat switch
+                {
+                    "raw" => localInput.AsRawAudioSource(chunkSize: (int)ChunkSizeBytes, cancellationToken: breaker),
+                    "proto" => localInput.AsProtoBinarySource<api.proto.Payload>(breaker),
+                    "json" => localInput.AsProtoJsonSource<api.proto.Payload>(breaker),
+                    _ => throw new NotImplementedException($"unsuported input format {IFormat}"),
+                });
 
-            pipe = pipe.ViaTaskRunner(call, accepts, Pipe);
-            if (param.Wrap || Wrap)
-                pipe = pipe.ViaOCWrapper();
+                pipe = pipe.ViaTaskRunner(call, accepts, Pipe);
 
-            if (param.Labels != null)
-                pipe = pipe.ViaClientMetaInjector(param.Labels);
+                await (OFormat switch
+                {
+                    "proto" => pipe.RunWithSink(localOutput.AsBinaryProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker),
+                    "json" => pipe.RunWithSink(localOutput.AsJsonProtoSink<api.proto.Payload>(), autoFlush: Flush, cancellationToken: breaker),
+                    "simple" => pipe.ToSimpleText().RunWithSink(localOutput.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
+                    "text:v2t" => pipe.ToText("v2t").RunWithSink(localOutput.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
+                    "text:tpc" => pipe.ToText("tpc").RunWithSink(localOutput.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
+                    "ntext:v2t" => pipe.ToNText("v2t").RunWithSink(localOutput.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
+                    "ntext:tpc" => pipe.ToNText("pnc").RunWithSink(localOutput.AsTextChunkSink(), autoFlush: Flush, cancellationToken: breaker),
+                    "console:v2t" => pipe.RunWithSink(Sink.ConsolePayloadSink("v2t"), autoFlush: Flush, cancellationToken: breaker),
+                    "console:tpc" => pipe.RunWithSink(Sink.ConsolePayloadSink("ppc"), autoFlush: Flush, cancellationToken: breaker),
+                    _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
+                });
 
-            await (param.OFormat switch
+            }
+
+            async Task RunOne()
             {
-                "proto" => pipe.RunWithSink(output.AsBinaryProtoSink<api.proto.Payload>(), autoFlush: param.Flush, cancellationToken: breaker),
-                "json" => pipe.RunWithSink(output.AsJsonProtoSink<api.proto.Payload>(), autoFlush: param.Flush, cancellationToken: breaker),
-                "simple" => pipe.ToSimpleText().RunWithSink(output.AsTextChunkSink(), autoFlush: param.Flush, cancellationToken: breaker),
-                "text:v2t" => pipe.ToText("v2t").RunWithSink(output.AsTextChunkSink(), autoFlush: param.Flush, cancellationToken: breaker),
-                "text:tpc" => pipe.ToText("tpc").RunWithSink(output.AsTextChunkSink(), autoFlush: param.Flush, cancellationToken: breaker),
-                "ntext:v2t" => pipe.ToNText("v2t").RunWithSink(output.AsTextChunkSink(), autoFlush: param.Flush, cancellationToken: breaker),
-                "ntext:tpc" => pipe.ToNText("tpc").RunWithSink(output.AsTextChunkSink(), autoFlush: param.Flush, cancellationToken: breaker),
-                "console:v2t" => pipe.RunWithSink(Sink.ConsolePayloadSink("v2t"), autoFlush: param.Flush, cancellationToken: breaker),
-                "console:tpc" => pipe.RunWithSink(Sink.ConsolePayloadSink("tpc"), autoFlush: param.Flush, cancellationToken: breaker),
-                _ => throw new NotImplementedException($"unsuported output format {param.OFormat}"),
+                _logger.LogInformation($"Starting {InputUriOption}");
+                await DoJob(input, output);
+                _logger.LogInformation($"Completed {InputUriOption}");
+            }
+
+            async Task<TarEntry> RunTar(TarEntry x)
+            {
+                var newname = x.Name + "." + OFormat.Replace(':', '-');
+                _logger.LogInformation($"Starting {x.Name}");
+                var ret = new PaxTarEntry(TarEntryType.RegularFile, newname);
+                ret.DataStream = new MemoryStream();
+                await DoJob(x.DataStream, ret.DataStream);
+                ret.DataStream.Seek(0, SeekOrigin.Begin);
+                _logger.LogInformation($"Completed {ret.Name}");
+                return ret;
+            }
+
+            await (ProcessingMode.Mode switch
+            {
+                "one" => RunOne(),
+                "tar" => input.AsTarSource(breaker).ViaAsyncMapperParallel(RunTar, ProcessingMode.Parallelism, Retry, breaker).RunWithSink(output.AsTarSink()),
+                _ => throw new NotImplementedException(ProcessingMode.Mode)
             });
             output.Complete();
-
-            if (param._opts.TheService != null)
-                _logger.LogInformation($"Task {param._opts.TheService.Service}:{param._opts.TheService.Version} completed");
             return 0;
         }
-
-
     }
 
 
