@@ -20,4 +20,4 @@ build/install/
 ntx20/ntx20.csproj.user
 build/.env
 build/nupkg/
-.envrc*
+.envrc.local
