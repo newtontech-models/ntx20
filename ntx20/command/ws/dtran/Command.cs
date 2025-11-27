@@ -18,7 +18,7 @@ using System.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 
-namespace ntx20.command.ws.atran
+namespace ntx20.command.ws.dtran
 {
 
     class Command : ICommand
@@ -43,14 +43,14 @@ namespace ntx20.command.ws.atran
                CommandOptionType.SingleValue
            );
 
-            var oFormat = command.Option($"-w|--writer <console:pnc>",
-                "write output as console:v2t|console:ppc|console:pnc",
+            var oFormat = command.Option($"-w|--writer <console:spc>",
+                "write output as console:v2t|console:tpc|console:spc",
                 CommandOptionType.SingleValue
                 );
 
 
             var decoderFeatures = command.Option($"--{Const.features} <none>",
-                 $"features (lookahead,latency,novad,nospk,novprint,noppc,nopnc)",
+                 $"features (lookahead,latency,novad,nospk,novprint,notpc)",
                 CommandOptionType.SingleValue
                 );
 
@@ -112,7 +112,7 @@ namespace ntx20.command.ws.atran
 
             
             var page = new StreamReader(
-                typeof(Program).GetTypeInfo().Assembly.GetManifestResourceStream("ntx20.command.ws.atran.atran.html"),
+                typeof(Program).GetTypeInfo().Assembly.GetManifestResourceStream("ntx20.command.ws.dtran.dtran.html"),
                 System.Text.Encoding.UTF8
                 ).ReadToEnd().Replace("%HOST%", $"{Host}");
             var builder = WebApplication.CreateBuilder();
@@ -122,7 +122,7 @@ namespace ntx20.command.ws.atran
 
             app.MapGet("/", () =>
             {
-                typeof(Program).GetTypeInfo().Assembly.GetManifestResourceStream("ntx20.command.ws.atran.atran.html");
+                typeof(Program).GetTypeInfo().Assembly.GetManifestResourceStream("ntx20.command.ws.dtran.dtran.html");
                 return Results.Content(page, "text/html");
             });
 
@@ -144,8 +144,8 @@ namespace ntx20.command.ws.atran
                 await (OFormat switch
                 {
                     "console:v2t" => pipe.RunWithSink(ws.AsConsolePayloadSink("v2t")),
-                    "console:ppc" => pipe.RunWithSink(ws.AsConsolePayloadSink("ppc")),
-                    "console:pnc" => pipe.RunWithSink(ws.AsConsolePayloadSink("pnc")),
+                    "console:tpc" => pipe.RunWithSink(ws.AsConsolePayloadSink("tpc")),
+                    "console:spc" => pipe.RunWithSink(ws.AsConsolePayloadSink("spc")),
                     _ => throw new NotImplementedException($"unsuported output format {OFormat}"),
                 });
                 _logger.LogInformation($"Disconnected from grpc service");

@@ -19,6 +19,7 @@ namespace ntx20.api.pipe
         private WebSocket socket;
         double lts = 0.0;
         Regex firstalpha = new Regex(@"^(\s*)(\S)(.*)$");
+        string currentSpeaker = null;
         public WsConsoleWriter(WebSocket socket, string track)
         {
             this.track = track;
@@ -42,7 +43,7 @@ namespace ntx20.api.pipe
             }
             string output = "";
             string la_output = "";
-            
+            var currentLaSpeaker = currentSpeaker;
             foreach (var e in item.Chunk)
             {
                 if (e.Key == "ts")
@@ -53,7 +54,7 @@ namespace ntx20.api.pipe
                 if (e.Tags.Contains("noise"))
                     continue;
                 
-                var s = e.S;
+                var s = e.S ?? string.Empty;
                 if (e.Tags.Contains("sos"))
                 {
 
@@ -64,9 +65,24 @@ namespace ntx20.api.pipe
                 }
 
                 if (e.Tags.Contains("la"))
+                {
+                    if (e.Labels.TryGetValue("spk", out var spkLabel) && spkLabel != currentLaSpeaker)
+                    {
+                        currentLaSpeaker = spkLabel;
+                        la_output += $"\n@{spkLabel}: ";
+                    }
                     la_output += s;
+                }
                 else
+                {
+                    if (e.Labels.TryGetValue("spk", out var spkLabel) && spkLabel != currentSpeaker)
+                    {
+                        currentSpeaker = spkLabel;
+                        currentLaSpeaker = spkLabel;
+                        output += $"\n@{spkLabel}: ";
+                    }
                     output += s;
+                }
             }
             
             if((output+la_output).Trim().Length >0)

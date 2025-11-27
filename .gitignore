@@ -1,4 +1,6 @@
 .vs/
+.vscode/
+playground/
 ntx20.api/bin/
 *.protodep
 ntx20.api/obj/
@@ -18,3 +20,4 @@ build/install/
 ntx20/ntx20.csproj.user
 build/.env
 build/nupkg/
+.envrc*

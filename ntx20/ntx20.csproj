@@ -9,9 +9,9 @@
     <VersionSuffix Condition="'$(PROJECT_VERSION)' == ''">$([System.DateTime]::UtcNow.ToString(`yyyyMMdd-HHmm`))</VersionSuffix>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Remove="Embedded\**" />
-    <EmbeddedResource Remove="Embedded\**" />
-    <None Remove="Embedded\**" />
+    <Compile Remove="Embedded/**" />
+    <EmbeddedResource Remove="Embedded/**" />
+    <None Remove="Embedded/**" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Grpc.Net.ClientFactory" Version="2.70.0" />
@@ -28,8 +28,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ntx20.api.proto\ntx20.api.proto.csproj" />
-    <ProjectReference Include="..\ntx20.api\ntx20.api.csproj" />
+    <ProjectReference Include="../ntx20.api.proto/ntx20.api.proto.csproj" />
+    <ProjectReference Include="../ntx20.api/ntx20.api.csproj" />
   </ItemGroup>
   <ItemGroup>
      <None Update="ntx20">
@@ -38,6 +38,7 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="command/ws/atran/atran.html" />
+    <EmbeddedResource Include="command/ws/dtran/dtran.html" />
   </ItemGroup>
 </Project>
 
