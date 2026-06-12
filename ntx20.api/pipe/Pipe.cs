@@ -27,6 +27,42 @@ namespace ntx20.api.pipe
         internal static Regex firstalpha = new Regex(@"^(\s*)(\S)(.*)$");
 
         private static readonly ILogger _logger = Logging.LoggerFactory.CreateLogger("ntx20.api.pipe");
+
+        private const double SpeakerWordMinOverlapRatio = 0.60;
+        private const double SpeakerSegmentMinSpeechCoverage = 0.50;
+        private const double SpeakerSegmentMinSpeechOverlapMs = 500.0;
+        private const int SpeakerSegmentMinWords = 2;
+
+        private sealed class SpeakerEvent
+        {
+            public double Time { get; init; }
+            public string Speaker { get; init; }
+        }
+
+        private sealed class DiarSegment
+        {
+            public double Start { get; init; }
+            public double End { get; init; }
+            public string Speaker { get; init; }
+            public double SpeechOverlap { get; set; }
+            public double SpeechCoverage { get; set; }
+            public int SpeechWordCount { get; set; }
+            public double Duration => End - Start;
+            public bool IsSpeechCovered => SpeechCoverage >= SpeakerSegmentMinSpeechCoverage
+                && (SpeechOverlap >= SpeakerSegmentMinSpeechOverlapMs || SpeechWordCount >= SpeakerSegmentMinWords);
+        }
+
+        private sealed class TranscriptWord
+        {
+            public int StartTsIndex { get; init; }
+            public double Start { get; init; }
+            public double End { get; init; }
+            public bool HasText { get; init; }
+            public string Speaker { get; set; }
+            public string BestSpeaker { get; set; }
+            public double BestOverlapRatio { get; set; }
+            public double Duration => End - Start;
+        }
 #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
         public static async IAsyncEnumerable<T> AsProtoSource<T>(this IEnumerable<T> list, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 #pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
@@ -790,23 +826,265 @@ namespace ntx20.api.pipe
                 yield return item;
             }
         }
+
+        private static List<TranscriptWord> BuildTranscriptWords(List<proto.Item> items)
+        {
+            var words = new List<TranscriptWord>();
+            int startTsIndex = -1;
+            double startTs = 0.0;
+            bool hasWordText = false;
+
+            for (int i = 0; i < items.Count; i++)
+            {
+                var item = items[i];
+                if (item.Tags.Contains("la"))
+                {
+                    continue;
+                }
+
+                if (item.Key == "ts")
+                {
+                    if (startTsIndex >= 0)
+                    {
+                        words.Add(new TranscriptWord
+                        {
+                            StartTsIndex = startTsIndex,
+                            Start = startTs,
+                            End = item.D,
+                            HasText = hasWordText,
+                        });
+                    }
+
+                    startTsIndex = i;
+                    startTs = item.D;
+                    hasWordText = false;
+                    continue;
+                }
+
+                if (startTsIndex >= 0
+                    && item.Key == "txt"
+                    && !item.Tags.Contains("+")
+                    && !item.Tags.Contains("noise")
+                    && item.S.Trim().Length > 0)
+                {
+                    hasWordText = true;
+                }
+            }
+
+            return words;
+        }
+
+        private static double Overlap(double startA, double endA, double startB, double endB)
+        {
+            return Math.Max(0.0, Math.Min(endA, endB) - Math.Max(startA, startB));
+        }
+
+        private static List<DiarSegment> BuildDiarSegments(List<SpeakerEvent> speakerEvents, double transcriptStart, double transcriptEnd)
+        {
+            var events = speakerEvents.OrderBy(x => x.Time).ToList();
+            var segments = new List<DiarSegment>();
+
+            if (events.Count == 0)
+            {
+                segments.Add(new DiarSegment
+                {
+                    Start = transcriptStart,
+                    End = transcriptEnd,
+                    Speaker = "nobody",
+                });
+                return segments;
+            }
+
+            for (int i = 0; i < events.Count; i++)
+            {
+                var start = events[i].Time;
+                var end = i + 1 < events.Count ? events[i + 1].Time : transcriptEnd;
+                if (end <= start)
+                {
+                    continue;
+                }
+
+                segments.Add(new DiarSegment
+                {
+                    Start = start,
+                    End = end,
+                    Speaker = events[i].Speaker,
+                });
+            }
+
+            return segments;
+        }
+
+        private static void MarkSpeechCoveredDiarSegments(List<DiarSegment> diarSegments, List<TranscriptWord> words)
+        {
+            foreach (var segment in diarSegments)
+            {
+                segment.SpeechOverlap = words
+                    .Where(x => x.HasText)
+                    .Sum(x => Overlap(segment.Start, segment.End, x.Start, x.End));
+                segment.SpeechWordCount = words
+                    .Where(x => x.HasText)
+                    .Count(x => Overlap(segment.Start, segment.End, x.Start, x.End) > 0.0);
+
+                segment.SpeechCoverage = segment.Duration > 0
+                    ? segment.SpeechOverlap / segment.Duration
+                    : 0.0;
+            }
+        }
+
+        private static string AssignSpeakerByOverlap(TranscriptWord word, List<DiarSegment> diarSegments)
+        {
+            DiarSegment bestSegment = null;
+            double bestOverlap = 0.0;
+
+            foreach (var segment in diarSegments.Where(x => x.IsSpeechCovered))
+            {
+                var overlap = Overlap(word.Start, word.End, segment.Start, segment.End);
+                if (overlap > bestOverlap)
+                {
+                    bestOverlap = overlap;
+                    bestSegment = segment;
+                }
+            }
+
+            word.BestSpeaker = bestSegment?.Speaker;
+            word.BestOverlapRatio = word.Duration > 0 ? bestOverlap / word.Duration : 0.0;
+
+            if (word.BestOverlapRatio >= SpeakerWordMinOverlapRatio)
+            {
+                return word.BestSpeaker;
+            }
+
+            return null;
+        }
+
+        private static string FallbackSpeaker(TranscriptWord word, List<TranscriptWord> words, int index, List<DiarSegment> diarSegments)
+        {
+            string previous = null;
+            for (int i = index - 1; i >= 0; i--)
+            {
+                if (words[i].HasText && words[i].Speaker != null)
+                {
+                    previous = words[i].Speaker;
+                    break;
+                }
+            }
+
+            string next = null;
+            for (int i = index + 1; i < words.Count; i++)
+            {
+                if (words[i].HasText && words[i].Speaker != null)
+                {
+                    next = words[i].Speaker;
+                    break;
+                }
+            }
+
+            if (previous != null && previous == next)
+            {
+                return previous;
+            }
+
+            return word.BestSpeaker
+                ?? previous
+                ?? next
+                ?? diarSegments.FirstOrDefault(x => x.IsSpeechCovered)?.Speaker
+                ?? diarSegments.FirstOrDefault()?.Speaker
+                ?? "nobody";
+        }
+
+        private static void AssignSpeakersToWords(List<TranscriptWord> words, List<DiarSegment> diarSegments)
+        {
+            MarkSpeechCoveredDiarSegments(diarSegments, words);
+
+            // Speaker changes are derived from word-to-diar interval overlap.
+            // Mostly empty diar segments are ignored, and boundary words need a
+            // clear overlap winner before they can introduce a new speaker.
+            for (int i = 0; i < words.Count; i++)
+            {
+                if (words[i].HasText)
+                {
+                    words[i].Speaker = AssignSpeakerByOverlap(words[i], diarSegments);
+                }
+            }
+
+            for (int i = 0; i < words.Count; i++)
+            {
+                if (words[i].HasText && words[i].Speaker == null)
+                {
+                    words[i].Speaker = FallbackSpeaker(words[i], words, i, diarSegments);
+                }
+            }
+        }
+
+        private static proto.Payload CreateTranPayloadByWordSpeakers(List<proto.Item> tpcItems, List<TranscriptWord> words)
+        {
+            Regex lastPunct = new Regex(@"(,|([^.!?]))\s*$");
+            var speakerByTsIndex = words
+                .Where(x => x.HasText && x.Speaker != null)
+                .ToDictionary(x => x.StartTsIndex, x => x.Speaker);
+            var ret = new proto.Payload { Track = "tran" };
+
+            string currentSpeaker = null;
+            proto.Item lastOne = null;
+            bool needSos = true;
+
+            for (int i = 0; i < tpcItems.Count; i++)
+            {
+                var item = tpcItems[i];
+                ret.Chunk.Add(item);
+
+                if (item.Key == "ts"
+                    && !item.Tags.Contains("la")
+                    && speakerByTsIndex.TryGetValue(i, out var speaker)
+                    && speaker != currentSpeaker)
+                {
+                    if (currentSpeaker != null && lastOne != null)
+                    {
+                        lastOne.S = lastPunct.Replace(lastOne.S, m =>
+                          m.Groups[2].Value + "."
+                          );
+                    }
+
+                    ret.Chunk.Add(new Item { Key = "spk", S = speaker });
+                    currentSpeaker = speaker;
+                    needSos = true;
+                    continue;
+                }
+
+                if (item.Key == "txt"
+                    && !item.Tags.Contains("la")
+                    && !item.Tags.Contains("noise")
+                    && item.S.Trim().Length > 0)
+                {
+                    if (needSos)
+                    {
+                        if (!item.Tags.Contains("sos"))
+                            item.Tags.Add("sos");
+                        needSos = false;
+                    }
+                    lastOne = item;
+                }
+            }
+
+            return ret;
+        }
+
         internal static async IAsyncEnumerable<proto.Payload> createTranTrack(this IAsyncEnumerable<proto.Payload> source, bool pipe)
         {
-
-            Regex lastPunct = new Regex(@"(,|([^.!?]))\s*$");
-            
+            var passthrough = new List<proto.Payload>();
+            var tpcItems = new List<proto.Item>();
+            var speakerEvents = new List<SpeakerEvent>();
             string cSpeaker = null;
-            double tpcHead = 0.0;
             double spkHead = 0.0;
 
-            Queue <proto.Item> spk = new();
-            Queue<proto.Item> tpc = new();
-            bool needSos = true;
             await foreach(var x in source)
             {
-                
                 if(pipe && x.Track!="tran")
-                    yield return x;
+                {
+                    passthrough.Add(x);
+                }
+
                 if (x.Track == "spk")
                 {
                     foreach(var x2 in x.Chunk)
@@ -820,7 +1098,7 @@ namespace ntx20.api.pipe
                             case "txt":
                                 if(cSpeaker != x2.S)
                                 {
-                                    spk.Enqueue(new Item { Key= "spk",S=x2.S, D= spkHead});
+                                    speakerEvents.Add(new SpeakerEvent { Time = spkHead, Speaker = x2.S });
                                     cSpeaker = x2.S;
                                 }
                                 break;
@@ -832,80 +1110,27 @@ namespace ntx20.api.pipe
                 }
                 if(x.Track == "tpc")
                 {
-                    foreach(var x2 in x.Chunk)
-                    {
-                        if (x2.Key == "ts" && !x2.Tags.Contains("la"))
-                        {
-                            tpcHead = x2.D;
-                        }
-                        tpc.Enqueue(x2);
-                    }
+                    tpcItems.AddRange(x.Chunk);
                 }
-                
-
-                while(spk.Count > 0 && spk.Peek().D < tpcHead && tpc.Count > 0)
-                {
-                    var cspk = spk.Dequeue();
-                    var changePoints = tpc.ToTimetampsWithPunct().OrderBy(x => Math.Abs(cspk.D - x.Item1)).ToArray();
-                    var chp = changePoints[0];
-                    /*
-                    if (!chp.Item2 && changePoints.Count() >0)
-                    {
-                        var second = changePoints[1];
-                        if(Math.Abs(cspk.D - second.Item1) < 250 && second.Item2)
-                        {
-                            chp = second;
-                        }
-                        
-                    }
-                    */
-                    var changePoint = chp.Item1;
-                    var ret = new proto.Payload() { Track = "tran" };
-                    proto.Item lastOne = null;
-                    while (true)
-                    {
-                        var ctpc = tpc.Dequeue();
-                        ret.Chunk.Add(ctpc);
-                        if(ctpc.Key == "txt" && !ctpc.Tags.Contains("la") && !ctpc.Tags.Contains("noise"))
-                        {
-                            if (ctpc.S.Trim().Length > 0)
-                            {
-                                if (needSos)
-                                {
-                                    if (!ctpc.Tags.Contains("sos"))
-                                        ctpc.Tags.Add("sos");
-                                    needSos = false;
-                                }
-                                lastOne = ctpc;
-                            }
-
-                        }
-                        if (ctpc.Key == "ts" && !ctpc.Tags.Contains("la") && ctpc.D == changePoint){
-
-                            if (lastOne != null) {
-                                lastOne.S = lastPunct.Replace(lastOne.S, m =>
-                                  m.Groups[2].Value + "."
-                                  );
-                            }
-                            
-
-                            break;
-                        }
-                    }
-                    ret.Chunk.Add(new Item { Key = "spk", S = cspk.S });
-                    
-                    needSos = true;
-
-                    yield return ret;
-                }
-                //TODO add buffer dequeue when no speaker found
             }
-            if (tpc.Count > 0)
+
+            foreach (var payload in passthrough)
             {
-                var ret = new proto.Payload() { Track = "tran" };
-                ret.Chunk.AddRange(tpc);
-                yield return ret;
+                yield return payload;
             }
+
+            if (tpcItems.Count == 0)
+            {
+                yield break;
+            }
+
+            var words = BuildTranscriptWords(tpcItems);
+            var transcriptStart = words.FirstOrDefault()?.Start ?? 0.0;
+            var transcriptEnd = words.LastOrDefault()?.End ?? transcriptStart;
+            var diarSegments = BuildDiarSegments(speakerEvents, transcriptStart, transcriptEnd);
+            AssignSpeakersToWords(words, diarSegments);
+
+            yield return CreateTranPayloadByWordSpeakers(tpcItems, words);
         }
 
         internal static void Add(this proto.Evaluation e, proto.Evaluation a)
