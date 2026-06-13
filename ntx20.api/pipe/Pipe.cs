@@ -32,6 +32,13 @@ namespace ntx20.api.pipe
         private const double SpeakerSegmentMinSpeechCoverage = 0.50;
         private const double SpeakerSegmentMinSpeechOverlapMs = 500.0;
         private const int SpeakerSegmentMinWords = 2;
+        private const double SpeakerPastMinDurationMs = 1000.0;
+        private const double SpeakerPastMinSpeechCoverage = 0.20;
+        private const double SpeakerShortSegmentMaxDurationMs = 1500.0;
+        private const int SpeakerShortSegmentMaxWords = 2;
+        private const double SpeakerSegmentStrongSpeechCoverage = 0.70;
+        private const double SpeakerSegmentStrongSpeechOverlapMs = 1500.0;
+        private const int SpeakerSegmentStrongWords = 4;
 
         private sealed class SpeakerEvent
         {
@@ -50,6 +57,19 @@ namespace ntx20.api.pipe
             public double Duration => End - Start;
             public bool IsSpeechCovered => SpeechCoverage >= SpeakerSegmentMinSpeechCoverage
                 && (SpeechOverlap >= SpeakerSegmentMinSpeechOverlapMs || SpeechWordCount >= SpeakerSegmentMinWords);
+            public bool IsStrongSpeechCovered => SpeechCoverage >= SpeakerSegmentStrongSpeechCoverage
+                && (SpeechOverlap >= SpeakerSegmentStrongSpeechOverlapMs || SpeechWordCount >= SpeakerSegmentStrongWords);
+            public bool NeedsPastSupport => !IsStrongSpeechCovered
+                && (Duration <= SpeakerShortSegmentMaxDurationMs || SpeechWordCount <= SpeakerShortSegmentMaxWords);
+        }
+
+        private sealed class SpeakerSupport
+        {
+            public double Duration { get; set; }
+            public double SpeechOverlap { get; set; }
+            public double SpeechCoverage => Duration > 0 ? SpeechOverlap / Duration : 0.0;
+            public bool HasEnoughHistory => Duration >= SpeakerPastMinDurationMs;
+            public bool IsSpeechSupported => SpeechCoverage >= SpeakerPastMinSpeechCoverage;
         }
 
         private sealed class TranscriptWord
@@ -932,6 +952,38 @@ namespace ntx20.api.pipe
             }
         }
 
+        private static void AddSpeakerSupport(Dictionary<string, SpeakerSupport> supportBySpeaker, DiarSegment segment)
+        {
+            if (!supportBySpeaker.TryGetValue(segment.Speaker, out var support))
+            {
+                support = new SpeakerSupport();
+                supportBySpeaker[segment.Speaker] = support;
+            }
+
+            support.Duration += segment.Duration;
+            support.SpeechOverlap += segment.SpeechOverlap;
+        }
+
+        private static bool IsCausallySupported(DiarSegment segment, Dictionary<string, SpeakerSupport> pastSupportBySpeaker)
+        {
+            if (!segment.IsSpeechCovered)
+            {
+                return false;
+            }
+
+            if (!segment.NeedsPastSupport)
+            {
+                return true;
+            }
+
+            if (!pastSupportBySpeaker.TryGetValue(segment.Speaker, out var support))
+            {
+                return false;
+            }
+
+            return support.HasEnoughHistory && support.IsSpeechSupported;
+        }
+
         private static string AssignSpeakerByOverlap(TranscriptWord word, List<DiarSegment> diarSegments)
         {
             DiarSegment bestSegment = null;
@@ -958,61 +1010,57 @@ namespace ntx20.api.pipe
             return null;
         }
 
-        private static string FallbackSpeaker(TranscriptWord word, List<TranscriptWord> words, int index, List<DiarSegment> diarSegments)
+        private static string FallbackSpeaker(TranscriptWord word, string previousSpeaker)
         {
-            string previous = null;
-            for (int i = index - 1; i >= 0; i--)
-            {
-                if (words[i].HasText && words[i].Speaker != null)
-                {
-                    previous = words[i].Speaker;
-                    break;
-                }
-            }
-
-            string next = null;
-            for (int i = index + 1; i < words.Count; i++)
-            {
-                if (words[i].HasText && words[i].Speaker != null)
-                {
-                    next = words[i].Speaker;
-                    break;
-                }
-            }
-
-            if (previous != null && previous == next)
-            {
-                return previous;
-            }
-
-            return word.BestSpeaker
-                ?? previous
-                ?? next
-                ?? diarSegments.FirstOrDefault(x => x.IsSpeechCovered)?.Speaker
-                ?? diarSegments.FirstOrDefault()?.Speaker
+            return previousSpeaker
+                ?? word.BestSpeaker
                 ?? "nobody";
         }
 
         private static void AssignSpeakersToWords(List<TranscriptWord> words, List<DiarSegment> diarSegments)
         {
             MarkSpeechCoveredDiarSegments(diarSegments, words);
+            var orderedDiarSegments = diarSegments
+                .OrderBy(x => x.Start)
+                .ToList();
+            var pastSupportBySpeaker = new Dictionary<string, SpeakerSupport>();
+            var nextSupportSegmentIndex = 0;
+            string previousSpeaker = null;
 
             // Speaker changes are derived from word-to-diar interval overlap.
-            // Mostly empty diar segments are ignored, and boundary words need a
-            // clear overlap winner before they can introduce a new speaker.
+            // Very short weak segments can only continue a speaker that has
+            // previous word support. They do not blacklist the speaker: a longer
+            // or strongly covered segment can still introduce that speaker later.
+            // Boundary words need a clear overlap winner before they can introduce
+            // a new speaker.
             for (int i = 0; i < words.Count; i++)
             {
-                if (words[i].HasText)
+                var word = words[i];
+                while (nextSupportSegmentIndex < orderedDiarSegments.Count
+                    && orderedDiarSegments[nextSupportSegmentIndex].End <= word.Start)
                 {
-                    words[i].Speaker = AssignSpeakerByOverlap(words[i], diarSegments);
+                    AddSpeakerSupport(pastSupportBySpeaker, orderedDiarSegments[nextSupportSegmentIndex]);
+                    nextSupportSegmentIndex++;
                 }
-            }
 
-            for (int i = 0; i < words.Count; i++)
-            {
-                if (words[i].HasText && words[i].Speaker == null)
+                if (!word.HasText)
                 {
-                    words[i].Speaker = FallbackSpeaker(words[i], words, i, diarSegments);
+                    continue;
+                }
+
+                var validDiarSegments = orderedDiarSegments
+                    .Where(x => IsCausallySupported(x, pastSupportBySpeaker))
+                    .ToList();
+
+                word.Speaker = AssignSpeakerByOverlap(word, validDiarSegments);
+                if (word.Speaker == null)
+                {
+                    word.Speaker = FallbackSpeaker(word, previousSpeaker);
+                }
+
+                if (word.Speaker != null)
+                {
+                    previousSpeaker = word.Speaker;
                 }
             }
         }
