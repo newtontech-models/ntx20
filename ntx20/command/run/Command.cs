@@ -14,7 +14,7 @@
                     {
 
 
-                        var meta = new Metadata { { "Authorization", $"Basic {Convert.ToBase64String(System.Text.ASCIIEncoding.UTF8.GetBytes(uri.UserInfo))}" } };
+                        var meta = ntx20.command.Authentication.CreateMetadata(uri, options.RunUsernameEnvOption, options.RunPasswordEnvOption, headersOption.Values);
                         if (options.TheService.Version.Length > 0 && options.TheService.Version != "latest")
                         {
                             meta.Add("service", $"{options.TheService.Service}:{options.TheService.Version}");

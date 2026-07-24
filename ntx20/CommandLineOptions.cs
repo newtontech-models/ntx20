@@ -92,6 +92,10 @@ namespace ntx20
         public ICommand Command { get; set; }
         public string Version { get; set; }
         public string LogFilter { get; set; }
+        public CommandOption RunUsernameEnvOption { get; set; }
+        public CommandOption RunPasswordEnvOption { get; set; }
+        public CommandOption WsUsernameEnvOption { get; set; }
+        public CommandOption WsPasswordEnvOption { get; set; }
 
         public Grpc.Net.Client.GrpcChannel Channel { get; set; }
         public Func<AsyncDuplexStreamingCall<api.proto.Payload,api.proto.Payload>> CreateStreaming { get; set; }

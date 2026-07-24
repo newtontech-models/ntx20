@@ -27,7 +27,16 @@
 * Run transcription with us openlex model:  `ntx20 run atran-us-openlex@https://usr:psw@yourcluster.com -i file.mp3 -w text:pnc -f`
 * Get help: `ntx20 run atran-us-openlex@https://usr:psw@yourcluster.com -h`
 * Set env variable cluster1=https://usr:psw@yourcluster.com for storing connection string and then call: `ntx20 run atran-us-openlex@cluster1`
+* Keep credentials outside of the connection string:
+
+  ```bash
+  export CLUSTER1=https://yourcluster.com
+  export CLUSTER1_USERNAME=usr
+  export CLUSTER1_PASSWORD='password used verbatim, without URL encoding'
+  ntx20 run atran-us-openlex@CLUSTER1 --username-env CLUSTER1_USERNAME --password-env CLUSTER1_PASSWORD -i file.mp3
+  ```
+
+  Both options must be used together. Referenced variables must be set; empty values produce a warning. Do not combine these options with credentials in the connection string or an `Authorization` header supplied through `--head`.
 * Environment for ntx20 process can be set in .env file in the root folder of ntx20 as key=value per line.
 * Run websocket proxy live dictation with cz-atran-dictate model:  `ntx20 ws atran-cz-dictate@https://usr:psw@yourcluster.com` and open http://localhost:8080 
     
-
