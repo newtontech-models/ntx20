@@ -14,9 +14,17 @@ namespace ntx20.command
             {
                 command.Command("app", (c) => app.Command.Configure(c, options), false);
             }
-            command.Command("run", (c) => run.Command.Configure(c, options), options.TheService != null);
+            command.Command("run", (c) =>
+            {
+                Authentication.ConfigureRun(c, options);
+                run.Command.Configure(c, options);
+            }, options.TheService != null);
             command.Command("util", (c) => util.Command.Configure(c, options));
-            command.Command("ws", (c) => ws.Command.Configure(c, options), options.TheService != null);
+            command.Command("ws", (c) =>
+            {
+                Authentication.ConfigureWs(c, options);
+                ws.Command.Configure(c, options);
+            }, options.TheService != null);
 
 
             command.OnExecute(() =>

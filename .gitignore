@@ -13,6 +13,8 @@ ntx20.app/obj/
 ntx20.app/Properties/launchSettings.json
 ntx20.api.proto/bin/
 ntx20.api.proto/obj/
+ntx20.Tests/bin/
+ntx20.Tests/obj/
 ntx20.app/ntx20.app.csproj.user
 ntx20/Properties/launchSettings.json
 build/apps.ntx20.cloud/

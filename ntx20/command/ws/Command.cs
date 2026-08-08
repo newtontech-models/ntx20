@@ -80,7 +80,7 @@ namespace ntx20.command.ws
                     {
 
 
-                        var meta = new Metadata { { "Authorization", $"Basic {Convert.ToBase64String(System.Text.ASCIIEncoding.UTF8.GetBytes(uri.UserInfo))}" } };
+                        var meta = ntx20.command.Authentication.CreateMetadata(uri, options.WsUsernameEnvOption, options.WsPasswordEnvOption, headersOption.Values);
                         if (options.TheService.Version.Length > 0 && options.TheService.Version != "latest")
                         {
                             meta.Add("service", $"{options.TheService.Service}:{options.TheService.Version}");
@@ -104,8 +104,8 @@ namespace ntx20.command.ws
                         }
 
 
-                        options.Channel = GrpcChannel.ForAddress(uri);
-                        options.CreateStreaming = () => new EngineService.EngineServiceClient(options.Channel).Streaming(meta);
+                        var callInvoker = options.CreateCallInvoker(uri);
+                        options.CreateStreaming = () => new EngineService.EngineServiceClient(callInvoker).Streaming(meta);
                     }
                     
                     options.Command = new Command(command);
