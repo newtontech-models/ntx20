@@ -98,7 +98,19 @@ namespace ntx20
         public CommandOption WsPasswordEnvOption { get; set; }
 
         public Grpc.Net.Client.GrpcChannel Channel { get; set; }
+        internal Func<Uri, CallInvoker> CallInvokerFactory { get; set; }
         public Func<AsyncDuplexStreamingCall<api.proto.Payload,api.proto.Payload>> CreateStreaming { get; set; }
+
+        internal CallInvoker CreateCallInvoker(Uri uri)
+        {
+            if (CallInvokerFactory != null)
+            {
+                return CallInvokerFactory(uri);
+            }
+
+            Channel = Grpc.Net.Client.GrpcChannel.ForAddress(uri);
+            return Channel.CreateCallInvoker();
+        }
         
 
         public ntx20.api.proto.ServiceVersion TheService { get; set; }

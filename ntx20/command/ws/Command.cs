@@ -104,8 +104,8 @@ namespace ntx20.command.ws
                         }
 
 
-                        options.Channel = GrpcChannel.ForAddress(uri);
-                        options.CreateStreaming = () => new EngineService.EngineServiceClient(options.Channel).Streaming(meta);
+                        var callInvoker = options.CreateCallInvoker(uri);
+                        options.CreateStreaming = () => new EngineService.EngineServiceClient(callInvoker).Streaming(meta);
                     }
                     
                     options.Command = new Command(command);
